@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+
+<head>
+    <title>Ultima V1 with Phaser3</title>
+
+    <!-- Add Google Fonts for pixel font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Add WebFontLoader for better font handling in games -->
+    <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
+
+    <script type="text/javascript" src="../phaser.min.js"></script>
+    <script type="text/javascript" src="main.js"></script>
+    <script type="text/javascript" src="level1.js"></script>
+    <script type="text/javascript" src="level2.js"></script>
+    <script type="text/javascript" src="level3.js"></script>
+    <script type="text/javascript" src="globalFunctions.js"></script>
+    <script type="text/javascript" src="showInventory.js"></script>
+    <script type="text/javascript" src="gameOver.js"></script>
+    <script type="text/javascript" src="game.js"></script>
+
+    <style>
+        body {
+            padding: 0px;
+            margin: 0px;
+            font-family: 'Press Start 2P', cursive;
+        }
+        
+        /* Force font preloading */
+        @font-face {
+            font-family: 'Press Start 2P';
+            src: url('https://fonts.gstatic.com/s/pressstart2p/v14/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        
+        /* Add a hidden element to force font loading */
+        .fontPreload {
+            font-family: 'Press Start 2P';
+            position: absolute;
+            left: -100px;
+            visibility: hidden;
+        }
+    </style>
+
+<!-- Microsoft Office metadata - unchanged -->
+</head>
+
+<body>
+    <!-- Hidden element to force font loading -->
+    <div class="fontPreload">.</div>
+</body>
+
+</html>
