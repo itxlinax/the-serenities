@@ -82,6 +82,11 @@ class main extends Phaser.Scene {
 
     this.load.image("liftPng", "assets/LABlift.png");
 
+    this.load.spritesheet("autarch", "assets/The_Autarch-22x21.png", {
+      frameWidth: 22,
+      frameHeight: 21
+  });
+
     
     }
 
@@ -387,6 +392,20 @@ class main extends Phaser.Scene {
         frameRate: 5,
         repeat: -1
       });
+
+      this.anims.create({
+        key: 'autarchIdle',
+        frames: [{ key: "autarch", frame: 4 }],
+        frameRate: 10,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'autarchAttack',
+        frames: this.anims.generateFrameNumbers("autarch", { start: 5, end: 6 }),
+        frameRate: 5,
+        repeat: -1
+    });
 
     
 
