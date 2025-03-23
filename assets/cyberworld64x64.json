@@ -159,6 +159,30 @@
                  "width":0,
                  "x":2238.66666666667,
                  "y":285.333333333333
+                }, 
+                {
+                 "height":0,
+                 "id":10,
+                 "name":"checkpoint1",
+                 "point":true,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":72,
+                 "y":104
+                }, 
+                {
+                 "height":0,
+                 "id":11,
+                 "name":"checkpoint2",
+                 "point":true,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":3134,
+                 "y":437.333333333333
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -167,7 +191,7 @@
          "y":0
         }],
  "nextlayerid":8,
- "nextobjectid":10,
+ "nextobjectid":12,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.8.6",
