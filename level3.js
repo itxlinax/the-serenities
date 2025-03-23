@@ -17,6 +17,12 @@ class level3 extends Phaser.Scene {
     this.load.image("cyberPlatform", "assets/cyberworld1.png");
     this.load.image("bgPng", "assets/cyberworld2.png");
     this.load.image("elementsPng", "assets/cyberworld3.png");
+
+    this.load.spritesheet("autarch", "assets/The_Autarch-22x21.png", {
+      frameWidth: 22,
+      frameHeight: 21
+  });
+
   }
 
   create() {
@@ -39,7 +45,6 @@ class level3 extends Phaser.Scene {
     this.backgroundLayer = map.createLayer("bg1", tilesArray, 0, 0);
     this.groundLayer = map.createLayer("floor", tilesArray, 0, 0);
     this.spikeLayer = map.createLayer("spikes", tilesArray, 0, 0);
-    this.doorLayer = map.createLayer("door", tilesArray, 0, 0); //position only
 
     // Adjusting world bounds to prevent black borders
     let mapWidth = map.widthInPixels;
@@ -55,10 +60,42 @@ class level3 extends Phaser.Scene {
     this.player = this.physics.add.sprite(start.x, start.y - 100, "serenity");
     this.player.setCollideWorldBounds(true);
     this.player.setScale(0.4);
+    this.player.setDepth(1);
     this.player.refreshBody();
     // Add attack cooldown properties to the player
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
+
+    // Initialize checkpoint system
+    this.lastCheckpoint = { x: start.x, y: start.y - 100 }; // Default to start position
+    this.checkpointGroup = this.physics.add.staticGroup();
+    
+    // Find checkpoint spawn points from object layer
+    const checkpointPoints = map.filterObjects(
+      "objectLayer",
+      (obj) => obj.name === "checkpoint1" || obj.name === "checkpoint2"
+    );
+    
+    // Create checkpoints at each spawn point
+    checkpointPoints.forEach((point) => {
+      const checkpoint = this.checkpointGroup
+        .create(point.x, point.y, "checkpointPng")
+        .setScale(0.5)
+        .setAlpha(0.7); // Make it slightly transparent
+        
+      // Store reference to specific checkpoints
+      if (point.name === "checkpoint1") this.checkpoint1 = checkpoint;
+      if (point.name === "checkpoint2") this.checkpoint2 = checkpoint;
+    });
+    
+    // Add overlap detection for checkpoints
+    this.physics.add.overlap(
+      this.player,
+      this.checkpointGroup,
+      this.touchCheckpoint,
+      null,
+      this
+    );
 
     // Enable collision on the floor layer
     this.groundLayer.setCollisionByExclusion(-1, true);
@@ -91,8 +128,8 @@ class level3 extends Phaser.Scene {
           .setScale(1.5)
           .play("autarchGuardIdle", true)
           .setCollideWorldBounds(true)
-          .setSize(40, 55)
-          .setOffset(5, 20)
+          .setSize(40, 70)
+        .setOffset(5, 10)
           .setOrigin(0.5, 1)
           .refreshBody();
 
@@ -133,42 +170,73 @@ class level3 extends Phaser.Scene {
     // Add enemy collision with world
     this.physics.add.collider(this.enemyGroup, this.groundLayer);
 
-    // Define the touchGuard function
+    // Define the touchGuard function - KEEP ONLY ONE VERSION
     this.touchGuard = function (player, enemy) {
-      if (!enemy.cooldown) {
-        enemy.cooldown = true;
-
-        // Deduct 10 health points (1 heart)
-        this.health -= 10;
-        window.heart = this.health;
-        updateInventory.call(this);
-
-        console.log("Player hit! Health:", this.health);
-
-        enemy.anims.stop();
-        enemy.play("autarchGuardAttack", true);
-
-        player.setTint(0xff0000);
-        this.cameras.main.shake(200, 0.01);
-
-        this.time.delayedCall(300, () => {
-          player.clearTint();
-        });
-
-        enemy.once("animationcomplete", () => {
-          // Enemy remains in attack pose
-        });
-
-        this.time.delayedCall(1000, () => {
-          enemy.cooldown = false;
-          enemy.play("autarchGuardIdle", true);
-        });
-
-        if (this.health <= 0) {
-          console.log("Respawning...");
-          this.respawnPlayer();
-          return;
+      // Prevent multiple hits in quick succession
+      if (this.playerInvulnerable) return;
+      
+      // Make player temporarily invulnerable
+      this.playerInvulnerable = true;
+      
+      // Deduct 10 health points (1 heart)
+      this.health -= 10;
+      window.heart = this.health;
+      updateInventory.call(this);
+      
+      // Check if player is moving (has non-zero velocity)
+      const isPlayerMoving = Math.abs(player.body.velocity.x) > 10;
+      
+      if (isPlayerMoving) {
+        // If player is moving, push away from enemy (current logic)
+        if (player.x < enemy.x) {
+          // Player is to the left of enemy, push left (away from enemy)
+          player.setVelocityX(-300);
+        } else {
+          // Player is to the right of enemy, push right (away from enemy)
+          player.setVelocityX(300);
         }
+      } else {
+        // If player is idle, push in the direction they're facing
+        if (player.flipX) {
+          // Player is facing left, push left
+          player.setVelocityX(-300);
+        } else {
+          // Player is facing right, push right
+          player.setVelocityX(300);
+        }
+      }
+      // Add upward velocity for better knockback feel
+      player.setVelocityY(-150);
+
+      console.log("Player hit! Health:", this.health);
+
+      enemy.anims.stop();
+      enemy.play("autarchGuardAttack", true);
+
+      // Visual feedback: tint the player red and shake the camera.
+      player.setTint(0xff0000);
+      this.cameras.main.shake(200, 0.01);
+      this.time.delayedCall(200, () => {
+        player.clearTint();
+      });
+      
+      // Keep invulnerability a bit longer than the tint
+      this.time.delayedCall(1000, () => {
+        this.playerInvulnerable = false;
+      });
+
+      enemy.once("animationcomplete", () => {
+        // Enemy remains in attack pose
+      });
+
+      this.time.delayedCall(1000, () => {
+        enemy.play("autarchGuardIdle", true);
+      });
+
+      if (this.health <= 0) {
+        console.log("Respawning...");
+        this.respawnPlayer();
+        return;
       }
     };
 
@@ -305,7 +373,8 @@ class level3 extends Phaser.Scene {
       window.heart = this.health; // Update global heart value
       updateInventory.call(this); // Update the UI
 
-      this.player.setPosition(start.x, start.y - 100);
+      // Respawn at the last checkpoint instead of start position
+      this.player.setPosition(this.lastCheckpoint.x, this.lastCheckpoint.y);
       this.player.clearTint();
       this.player.body.enable = true;
       this.player.setActive(true).setVisible(true);
@@ -405,6 +474,255 @@ class level3 extends Phaser.Scene {
       null,
       this
     );
+    
+    //======================================== Boss (Level 3) ========================================//
+    
+    // Find boss spawn point from object layer
+    const bossSpawn = map.findObject("objectLayer", (obj) => obj.name === "boss");
+    
+    // Default position if not found in object layer
+    const bossX = bossSpawn ? bossSpawn.x : 3450;
+    const bossY = bossSpawn ? bossSpawn.y : 500;
+    
+    // Place the autarch boss in the map
+    this.boss = this.physics.add
+      .sprite(bossX, bossY, "autarch")
+      .setScale(9)
+      .refreshBody();
+
+      // Make sure the boss is visible and active
+this.boss.setActive(true).setVisible(true);
+    
+    // Play the idle animation
+    this.boss.play("autarchIdle", true);
+    
+    // Don't try to play animations immediately
+    this.boss.health = 20;
+    this.boss.isAttacking = false;
+    this.boss.nextAttackTime = 0;
+    
+    // Completely disable physics body interactions with the world
+    this.boss.body.setAllowGravity(false);
+    this.boss.body.setImmovable(true);
+    this.boss.body.setSize(20, 20);
+    this.boss.body.setOffset(3, 3);
+    this.boss.body.setCollideWorldBounds(true);
+
+    // Debug visualization to see the hitbox
+this.physics.world.createDebugGraphic();
+this.boss.setDebug(true, true, 0xff0000);
+    
+    // Define floating area for the boss
+    const floatArea = {
+      minX: 3270,
+      maxX: 3630,
+      minY: 350,
+      maxY: 700
+    };
+    
+    const floatAround = () => {
+      // Only proceed if the boss is active
+      if (!this.boss || !this.boss.active) return;
+      
+      // Choose a random target position within the defined area
+      const targetX = Phaser.Math.Between(floatArea.minX, floatArea.maxX);
+      const targetY = Phaser.Math.Between(floatArea.minY, floatArea.maxY);
+    
+      // Tween the boss to the new position with smoother movement
+      this.tweens.add({
+        targets: this.boss,
+        x: targetX,
+        y: targetY,
+        duration: Phaser.Math.Between(3000, 5000), // Slightly longer for smoother movement
+        ease: "Sine.easeInOut",
+        onComplete: floatAround,
+        callbackScope: this,
+        onUpdate: () => {
+          // Make sure the boss stays in idle animation when not attacking
+          if (this.boss && this.boss.active && !this.boss.isAttacking && this.boss.health > 0) {
+            if (this.boss.anims.currentAnim && this.boss.anims.currentAnim.key !== "autarchIdle") {
+              this.boss.play("autarchIdle", true);
+            }
+          }
+        }
+      });
+    };
+    
+    // Start the floating behavior
+    floatAround();
+    
+    // Add damage handling code for the boss
+    this.boss.takeDamage = (damage) => {
+      if (!this.boss.active || this.boss.health <= 0) return;
+    
+      console.log("Boss taking damage:", damage);
+      this.boss.health -= damage;
+      this.boss.body.setVelocity(0); // Stop movement when hit
+    
+      if (this.boss.health > 0) {
+        // Play attack animation when hit
+        this.boss.play("autarchAttack", true);
+        
+        // Visual feedback
+        this.boss.setTint(0xff0000);
+        this.time.delayedCall(200, () => {
+          if (this.boss && this.boss.active) {
+            this.boss.clearTint();
+          }
+        });
+        
+        this.time.delayedCall(500, () => {
+          if (this.boss && this.boss.active && !this.boss.isAttacking) {
+            this.boss.play("autarchIdle", true);
+          }
+        });
+      } else {
+        // Boss is defeated
+        this.boss.body.enable = false;
+        this.boss.isAttacking = false; // Ensure boss stops attacking
+    
+        // Add score when boss is defeated
+        this.score += 100;
+        window.score = this.score;
+    
+        // Visual effects for boss defeat
+        this.cameras.main.flash(500, 255, 255, 255);
+        this.cameras.main.shake(500, 0.02);
+    
+        // Show victory message
+        const victoryText = this.add
+          .text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY - 50,
+            "BOSS DEFEATED!",
+            {
+              fontSize: "32px",
+              fontFamily: '"Press Start 2P"',
+              color: "#ffffff",
+              stroke: "#000000",
+              strokeThickness: 4,
+            }
+          )
+          .setOrigin(0.5)
+          .setScrollFactor(0);
+    
+        // Stop all boss-related tweens and timers
+        this.tweens.getTweensOf(this.boss).forEach((tween) => tween.stop());
+    
+        // Fade out the boss
+        this.tweens.add({
+          targets: this.boss,
+          alpha: 0,
+          duration: 2000,
+          onComplete: () => {
+            this.boss.destroy();
+          }
+        });
+    
+        // Return to main menu after delay
+        this.time.delayedCall(5000, () => {
+          if (victoryText && victoryText.active) {
+            victoryText.destroy();
+          }
+          // Save player state before transitioning
+          window.heart = this.health;
+          window.score = this.score;
+          window.memoryDisk = window.memoryDisk || 0;
+    
+          // Transition to main menu
+          this.scene.start("main");
+        });
+      }
+    };
+    
+    // Define the boss attack function
+    this.spawnBossAttackEffect = () => {
+      // Only proceed if the boss is active
+      if (!this.boss || !this.boss.active || this.boss.health <= 0) return;
+      
+      // Create the projectile at the boss's position
+      let attackEffect = this.physics.add.sprite(
+        this.boss.x,
+        this.boss.y,
+        "enemyAttack"
+      );
+      attackEffect.setScale(0.5);
+      attackEffect.setDepth(10);
+      attackEffect.anims.play("enemyAttackAnim", true);
+    
+      // Launch the projectile toward the player
+      this.physics.moveToObject(attackEffect, this.player, 300);
+    
+      // Add collision with the ground layers to prevent projectiles going through walls
+      this.physics.add.collider(attackEffect, this.groundLayer, (proj) => {
+        proj.destroy();
+      });
+    
+      // Overlap detection: if the projectile hits the player, damage the player
+      this.physics.add.overlap(
+        attackEffect,
+        this.player,
+        (proj, player) => {
+          proj.destroy();
+          if (player.takeDamage) {
+            player.takeDamage(10);
+          }
+        },
+        null,
+        this
+      );
+    
+      // Destroy the projectile after 3 seconds if it hasn't hit anything
+      this.time.delayedCall(
+        3000,
+        () => {
+          if (attackEffect.active) {
+            attackEffect.destroy();
+          }
+        },
+        null,
+        this
+      );
+    };
+    
+    // Add boss attack logic to update function
+    this.updateBoss = (time) => {
+      if (!this.boss || !this.boss.active || this.boss.health <= 0) return;
+    
+      // Check if player is within the boss's attack range
+      const distance = Phaser.Math.Distance.Between(
+        this.boss.x,
+        this.boss.y,
+        this.player.x,
+        this.player.y
+      );
+    
+      // If player is within range and the boss isn't attacking, attack
+      if (
+        distance <= 400 &&
+        !this.boss.isAttacking &&
+        time > this.boss.nextAttackTime
+      ) {
+        this.boss.isAttacking = true;
+        
+        // Play attack animation instead of using tint
+        this.boss.play("autarchAttack", true);
+        
+        // Spawn attack effect
+        this.spawnBossAttackEffect();
+        
+        // Set cooldown for next attack
+        this.boss.nextAttackTime = time + 2000;
+        
+        // Reset attack state after animation
+        this.time.delayedCall(1000, () => {
+          if (this.boss && this.boss.active) {
+            this.boss.isAttacking = false;
+            this.boss.play("autarchIdle", true);
+          }
+        });
+      }
+    };
   }
 
   update() {
@@ -421,6 +739,11 @@ class level3 extends Phaser.Scene {
       // console.log(`Player Position: x=${this.player.x}, y=${this.player.y}`); //pixel
       this.lastX = this.player.x;
       this.lastY = this.player.y;
+    }
+
+    // Update boss behavior
+    if (this.boss && this.boss.active) {
+      this.updateBoss(this.time.now);
     }
 
     let keys = this.input.keyboard.addKeys({
@@ -670,53 +993,93 @@ class level3 extends Phaser.Scene {
       this
     );
 
-    // Overlap detection for autarchrobot (this.robot)
-    this.physics.add.overlap(
-      attackEffect,
-      this.robot,
-      (attack, robot) => {
-        attack.destroy();
+    // Add overlap detection for boss
+    if (this.boss && this.boss.active) {
+      this.physics.add.overlap(
+        attackEffect,
+        this.boss,
+        (attack, boss) => {
+          attack.destroy();
 
-        // Call autarchrobot's custom damage handling
-        robot.takeDamage(1);
+          // Call boss's custom damage handling
+          boss.takeDamage(1);
 
-        // Visual feedback for autarchrobot
-        robot.setTint(0xff0000);
-        this.time.delayedCall(200, () => {
-          if (robot.active) robot.clearTint();
-        });
+          // Visual feedback for boss
+          boss.setTint(0xff0000);
+          this.time.delayedCall(200, () => {
+            if (boss.active) boss.clearTint();
+          });
 
-        // Create damage text for autarchrobot
-        const damageText = this.add
-          .text(robot.x, robot.y - 40, "-1", {
-            fontSize: "24px",
-            fontFamily: "Arial",
-            color: "#ff0000",
+          // Create damage text for boss
+          const damageText = this.add
+            .text(boss.x, boss.y - 40, "-1", {
+              fontSize: "24px",
+              fontFamily: '"Press Start 2P"',
+              color: "#ff0000",
+              stroke: "#000000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5);
+          this.tweens.add({
+            targets: damageText,
+            y: damageText.y - 50,
+            alpha: 0,
+            duration: 800,
+            onComplete: () => damageText.destroy(),
+          });
+
+          console.log(`Boss hit! Remaining health: ${boss.health}`);
+        },
+        null,
+        this
+      );
+    }}
+
+  // Callback for touching checkpoints
+  touchCheckpoint(player, checkpoint) {
+    // Only update if this is a new checkpoint
+    if (this.lastCheckpoint.x !== checkpoint.x || this.lastCheckpoint.y !== checkpoint.y) {
+      this.lastCheckpoint = { x: checkpoint.x, y: checkpoint.y };
+      
+      // Visual feedback
+      checkpoint.setAlpha(1); // Make the current checkpoint fully visible
+      
+      // Reset other checkpoints to semi-transparent
+      this.checkpointGroup.getChildren().forEach((cp) => {
+        if (cp !== checkpoint) {
+          cp.setAlpha(0.7);
+        }
+      });
+      
+      // Show checkpoint activated message
+      const checkpointText = this.add
+        .text(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY - 50,
+          "CHECKPOINT ACTIVATED!",
+          {
+            fontSize: "20px",
+            fontFamily: '"Press Start 2P"',
+            color: "#ffffff",
             stroke: "#000000",
-            strokeThickness: 2,
-            fontWeight: "bold",
-          })
-          .setOrigin(0.5);
-        this.tweens.add({
-          targets: damageText,
-          y: damageText.y - 50,
-          alpha: 0,
-          duration: 800,
-          onComplete: () => damageText.destroy(),
-        });
-
-        console.log(`Autarchrobot hit! Remaining health: ${robot.health}`);
-      },
-      null,
-      this
-    );
-
-    // Destroy the attack effect after its animation completes
-    attackEffect.on("animationcomplete", () => {
-      attackEffect.destroy();
-    });
-
-    // Add this method to your class
+            strokeThickness: 4,
+          }
+        )
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(100);
+        
+      // Fade out the text after a short delay
+      this.tweens.add({
+        targets: checkpointText,
+        alpha: 0,
+        duration: 1500,
+        delay: 1000,
+        onComplete: () => checkpointText.destroy()
+      });
+      
+      console.log("Checkpoint activated at:", this.lastCheckpoint.x, this.lastCheckpoint.y);
+    }
   }
 
   // Fix the hitSuperglitch method

@@ -32,7 +32,7 @@ class level2 extends Phaser.Scene {
     this.load.image("labFloor6Png", "assets/LABtallfloor.png");
     this.load.image("labWallPng", "assets/LABwall.png");
     this.load.image("ladderPng", "assets/LABladder.png");
-    this.load.image("LABlift", "assets/LABlift.png");
+    
   }
 
   create() {
@@ -92,7 +92,7 @@ class level2 extends Phaser.Scene {
     this.floor = map.createLayer("labFloor", tilesArray, 0, 0);
     this.groundLayer = map.createLayer("floorNplatform", tilesArray, 0, 0);
     this.ladderDeco = map.createLayer("ladderDECO", tilesArray, 0, 0);
-    this.ladder = map.createLayer("ladder", tilesArray, 0, 0);
+
 
     // Adjusting world bounds to prevent black borders
     let mapWidth = map.widthInPixels;
@@ -110,32 +110,43 @@ class level2 extends Phaser.Scene {
     this.player = this.physics.add.sprite(start.x, start.y - 100, "serenity");
     this.player.setCollideWorldBounds(true);
     this.player.setScale(0.4);
+    this.player.setDepth(1);
     this.player.refreshBody();
     // Add attack cooldown properties to the player
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
 
-    // Add moving lift
-    this.lift = this.physics.add
-      .sprite(1073, 1670, "liftPng")
-      .setImmovable(true)
-      .setScale(1.25)
-      .refreshBody(); 
-    this.lift.body.setAllowGravity(false);
-    this.lift.body.setSize(200, 20); // Adjust hitbox to be a platform
-    this.lift.body.setOffset(0, 20); // Offset hitbox to align with the top of the lift
-
-    // Create lift movement tween
-    this.liftTween = this.tweens.add({
-      targets: this.lift,
-      y: 600, // Top position
-      duration: 8000, // 8 seconds to move up
-      ease: "Linear",
-      yoyo: true, // Go back down
-      repeat: -1, // Repeat indefinitely
-      hold: 2000, // Wait 2 seconds at the top
-      repeatDelay: 2000, // Wait 2 seconds at the bottom before repeating
+    // Initialize checkpoint system
+    this.lastCheckpoint = { x: start.x, y: start.y - 100 }; // Default to start position
+    this.checkpointGroup = this.physics.add.staticGroup();
+    
+    // Find checkpoint spawn points from object layer
+    const checkpointPoints = map.filterObjects(
+      "objectLayer",
+      (obj) => obj.name === "checkpoint1" || obj.name === "checkpoint2" || obj.name === "checkpoint3"
+    );
+    
+    // Create checkpoints at each spawn point
+    checkpointPoints.forEach((point) => {
+      const checkpoint = this.checkpointGroup
+        .create(point.x, point.y, "checkpointPng")
+        .setScale(0.5)
+        .setAlpha(0.7); // Make it slightly transparent
+        
+      // Store reference to specific checkpoints
+      if (point.name === "checkpoint1") this.checkpoint1 = checkpoint;
+      if (point.name === "checkpoint2") this.checkpoint2 = checkpoint;
+      if (point.name === "checkpoint3") this.checkpoint3 = checkpoint;
     });
+    
+    // Add overlap detection for checkpoints
+    this.physics.add.overlap(
+      this.player,
+      this.checkpointGroup,
+      this.touchCheckpoint,
+      null,
+      this
+    );
 
     // Continue with door setup
     this.door1 = this.physics.add
@@ -148,20 +159,16 @@ class level2 extends Phaser.Scene {
     this.groundLayer.setCollisionByExclusion(-1, true);
     this.floor.setCollisionByExclusion(-1, true);
     this.divider.setCollisionByExclusion(-1, true);
+    
+    // Add overlap detection for the ladder zone
+    this.physics.add.overlap(this.player, this.ladderZone, this.allowClimb, null, this);
 
     // Add physics collider between player and the ground
     this.physics.add.collider(this.player, this.groundLayer);
     this.physics.add.collider(this.player, this.floor);
     this.physics.add.collider(this.player, this.door1);
     this.physics.add.collider(this.player, this.divider);
-    // Add collision between player and lift
-    this.physics.add.collider(this.player, this.lift, (player, lift) => {
-      // Only stick the player to the lift if they're standing on top of it
-      if (player.body.touching.down && lift.body.touching.up) {
-        // Make the player move with the lift
-        player.y = lift.y - lift.height / 2 - player.height / 2 + 10;
-      }
-    });
+    
 
     //======================================== Enemies ========================================//
 
@@ -189,8 +196,8 @@ class level2 extends Phaser.Scene {
         .setScale(1.5)
         .play("autarchGuardIdle", true)
         .setCollideWorldBounds(true)
-        .setSize(40, 55)
-        .setOffset(5, 20)
+        .setSize(40, 70)
+        .setOffset(5, 10)
         .setOrigin(0.5, 1)
         .refreshBody();
 
@@ -284,7 +291,6 @@ class level2 extends Phaser.Scene {
       }
 
       turret.body.allowGravity = false;
-      turret.health = 10;
       turret.lastFired = 0;
       turret.fireRate = 3000; // Fire every 3 seconds
 
@@ -391,102 +397,73 @@ class level2 extends Phaser.Scene {
       );
     };
 
-    // Add overlap detection for player attacks on turrets
-    this.physics.add.overlap(
-      this.turretGroup,
-      null, // This will be set in the spawnAttackEffect function
-      (turret, attack) => {
-        attack.destroy();
-
-        if (turret.health === undefined) turret.health = 10;
-        turret.health -= 1;
-
-        // Visual feedback for turret
-        turret.setTint(0xff0000);
-        this.time.delayedCall(200, () => {
-          if (turret && turret.active) turret.clearTint();
-        });
-
-        // Create damage text for turret
-        const damageText = this.add
-          .text(turret.x, turret.y - 40, "-1", {
-            fontSize: "16px",
-            fontFamily: '"Press Start 2P"',
-            color: "#ff0000",
-            stroke: "#000000",
-            strokeThickness: 2,
-          })
-          .setOrigin(0.5);
-        this.tweens.add({
-          targets: damageText,
-          y: damageText.y - 50,
-          alpha: 0,
-          duration: 800,
-          onComplete: () => damageText.destroy(),
-        });
-
-        console.log(`Turret hit! Remaining health: ${turret.health}`);
-
-        if (turret.health <= 0) {
-          // Add score when turret is defeated
-          this.score += 50;
-          console.log("Turret defeated! Score:", this.score);
-
-          // Properly clean up the turret
-          if (turret.body) turret.body.destroy();
-
-          // Clear references to this turret
-          if (turret === this.turret1) this.turret1 = null;
-          if (turret === this.turret2) this.turret2 = null;
-          if (turret === this.turret3) this.turret3 = null;
-          if (turret === this.turret4) this.turret4 = null;
-          if (turret === this.turret5) this.turret5 = null;
-
-          // Finally destroy the turret sprite
-          turret.destroy();
-          this.turretGroup.remove(turret, true, true);
-        }
-      },
-      null,
-      this
-    );
-
     // Define the touchGuard function - KEEP ONLY ONE VERSION
     this.touchGuard = function (player, enemy) {
-      if (!enemy.cooldown) {
-        enemy.cooldown = true;
-
-        // Deduct 10 health points (1 heart)
-        this.health -= 10;
-        window.heart = this.health;
-        updateInventory.call(this);
-
-        console.log("Player hit! Health:", this.health);
-
-        enemy.anims.stop();
-        enemy.play("autarchGuardAttack", true);
-
-        player.setTint(0xff0000);
-        this.cameras.main.shake(200, 0.01);
-
-        this.time.delayedCall(300, () => {
-          player.clearTint();
-        });
-
-        enemy.once("animationcomplete", () => {
-          // Enemy remains in attack pose
-        });
-
-        this.time.delayedCall(1000, () => {
-          enemy.cooldown = false;
-          enemy.play("autarchGuardIdle", true);
-        });
-
-        if (this.health <= 0) {
-          console.log("Respawning...");
-          this.respawnPlayer();
-          return;
+      // Prevent multiple hits in quick succession
+      if (this.playerInvulnerable) return;
+      
+      // Make player temporarily invulnerable
+      this.playerInvulnerable = true;
+      
+      // Deduct 10 health points (1 heart)
+      this.health -= 10;
+      window.heart = this.health;
+      updateInventory.call(this);
+      
+      // Check if player is moving (has non-zero velocity)
+      const isPlayerMoving = Math.abs(player.body.velocity.x) > 10;
+      
+      if (isPlayerMoving) {
+        // If player is moving, push away from enemy (current logic)
+        if (player.x < enemy.x) {
+          // Player is to the left of enemy, push left (away from enemy)
+          player.setVelocityX(-300);
+        } else {
+          // Player is to the right of enemy, push right (away from enemy)
+          player.setVelocityX(300);
         }
+      } else {
+        // If player is idle, push in the direction they're facing
+        if (player.flipX) {
+          // Player is facing left, push left
+          player.setVelocityX(-300);
+        } else {
+          // Player is facing right, push right
+          player.setVelocityX(300);
+        }
+      }
+      // Add upward velocity for better knockback feel
+      player.setVelocityY(-150);
+
+      console.log("Player hit! Health:", this.health);
+
+      enemy.anims.stop();
+      enemy.play("autarchGuardAttack", true);
+
+      // Visual feedback: tint the player red and shake the camera.
+      player.setTint(0xff0000);
+      this.cameras.main.shake(200, 0.01);
+      this.time.delayedCall(200, () => {
+        player.clearTint();
+      });
+      
+      // Keep invulnerability a bit longer than the tint
+      this.time.delayedCall(1000, () => {
+        this.playerInvulnerable = false;
+      });
+
+      enemy.once("animationcomplete", () => {
+        // Enemy remains in attack pose
+      });
+
+      this.time.delayedCall(1000, () => {
+        enemy.play("autarchGuardIdle", true);
+      });
+
+      if (this.health <= 0) {
+        console.log("Respawning...");
+        this.respawnPlayer();
+        return;
       }
     };
 
@@ -539,7 +516,8 @@ class level2 extends Phaser.Scene {
       window.heart = this.health; // Update global heart value
       updateInventory.call(this); // Update the UI
 
-      this.player.setPosition(start.x, start.y - 100);
+      // Respawn at the last checkpoint instead of start position
+      this.player.setPosition(this.lastCheckpoint.x, this.lastCheckpoint.y);
       this.player.clearTint();
       this.player.body.enable = true;
       this.player.setActive(true).setVisible(true);
@@ -739,8 +717,8 @@ class level2 extends Phaser.Scene {
     // Completely disable physics body interactions with the world
     this.boss.body.setAllowGravity(false);
     this.boss.body.setImmovable(true);
-    this.boss.body.setSize(50, 50);
-    this.boss.body.setOffset(23, 23);
+    this.boss.body.setSize(50, 70);
+    this.boss.body.setOffset(23, 0);
     this.boss.body.setCollideWorldBounds(true);
 
     // Define floating area for the boss - keep it away from ground
@@ -750,6 +728,10 @@ class level2 extends Phaser.Scene {
       minY: 520,
       maxY: 1700, // Reduced max Y to keep boss away from ground
     };
+
+//     // Debug visualization to see the hitbox
+// this.physics.world.createDebugGraphic();
+// this.boss.setDebug(true, true, 0xff0000);
 
     const floatAround = () => {
       // Only proceed if the boss is active
@@ -852,6 +834,9 @@ class level2 extends Phaser.Scene {
           window.score = this.score;
           window.memoryDisk = window.memoryDisk || 0;
 
+          // Add transition effect
+          this.cameras.main.fade(1000, 0, 0, 0);
+          
           // Transition to level3
           this.scene.start("level3");
         });
@@ -977,7 +962,7 @@ class level2 extends Phaser.Scene {
           }
         });
       }
-    };
+    }; 
 
     // Register the boss update function
     this.events.on("update", this.updateBoss, this);
@@ -999,7 +984,7 @@ class level2 extends Phaser.Scene {
     }
 
     if (this.lastX !== this.player.x || this.lastY !== this.player.y) {
-      console.log(`Player Position: x=${this.player.x}, y=${this.player.y}`); //pixels
+      // console.log(`Player Position: x=${this.player.x}, y=${this.player.y}`); //pixels
       this.lastX = this.player.x;
       this.lastY = this.player.y;
     }
@@ -1158,16 +1143,13 @@ class level2 extends Phaser.Scene {
     // Handle Attack with "K"
     if (Phaser.Input.Keyboard.JustDown(keys.attack)) {
       const currentTime = this.time.now;
-
+      
       // Check if enough time has passed since the last attack
-      if (
-        currentTime - this.player.lastAttackTime >
-        this.player.attackCooldown
-      ) {
+      if (currentTime - this.player.lastAttackTime > this.player.attackCooldown) {
         this.player.lastAttackTime = currentTime;
         this.player.setVelocityX(0); // Stop movement while attacking
         this.player.anims.play("attackLaunch", true);
-
+        
         // Delay attack effect slightly so it appears after launch
         this.time.delayedCall(150, () => {
           if (this.player && this.player.active) {
@@ -1176,6 +1158,7 @@ class level2 extends Phaser.Scene {
         });
       }
     }
+  
 
     // Handle turret firing
     const currentTime = this.time.now;
@@ -1301,29 +1284,25 @@ class level2 extends Phaser.Scene {
         (attack, boss) => {
           attack.destroy();
 
-          // Make sure boss exists and is active before applying damage
-          if (!boss || !boss.active) return;
-
-          // Call boss's takeDamage method
+          // Call boss's custom damage handling
           boss.takeDamage(1);
 
-          // Visual feedback
+          // Visual feedback for boss
           boss.setTint(0xff0000);
           this.time.delayedCall(200, () => {
-            if (boss && boss.active) boss.clearTint();
+            if (boss.active) boss.clearTint();
           });
 
-          // Create damage text
+          // Create damage text for boss
           const damageText = this.add
             .text(boss.x, boss.y - 40, "-1", {
-              fontSize: "16px",
+              fontSize: "24px",
               fontFamily: '"Press Start 2P"',
               color: "#ff0000",
               stroke: "#000000",
               strokeThickness: 2,
             })
             .setOrigin(0.5);
-
           this.tweens.add({
             targets: damageText,
             y: damageText.y - 50,
@@ -1339,19 +1318,44 @@ class level2 extends Phaser.Scene {
       );
     }
 
-    // Add overlap detection for turrets
+    // For turrets - just add a collision that destroys the attack effect
+    // This makes turrets indestructible but still blocks attacks
     this.physics.add.overlap(
       attackEffect,
       this.turretGroup,
-      // ... existing turret damage code ...
+      (attack) => {
+        // Just destroy the attack effect when it hits a turret
+        attack.destroy();
+        
+        // Optional: Add a spark or deflection effect
+        const sparkEffect = this.add.particles(attack.x, attack.y, 'serenityAttack', {
+          speed: 100,
+          scale: { start: 0.1, end: 0 },
+          blendMode: 'ADD',
+          lifespan: 200,
+          quantity: 5
+        });
+        
+        // Auto-destroy the particle effect after it completes
+        this.time.delayedCall(200, () => {
+          if (sparkEffect) sparkEffect.destroy();
+        });
+      },
       null,
       this
     );
 
-    // Destroy the attack effect after its animation completes
-    attackEffect.on("animationcomplete", () => {
-      attackEffect.destroy();
-    });
+    // Destroy the attack effect after 1 second if it hasn't hit anything
+    this.time.delayedCall(
+      1000,
+      () => {
+        if (attackEffect.active) {
+          attackEffect.destroy();
+        }
+      },
+      null,
+      this
+    );
   }
 
   // Callback for collecting food items
@@ -1419,20 +1423,52 @@ class level2 extends Phaser.Scene {
       console.log("Player defeated! Respawning...");
       this.respawnPlayer();
     }
-    // Handle lift movement with player
-    if (
-      this.player.body.touching.down &&
-      this.player.x >= this.lift.x - this.lift.width / 2 &&
-      this.player.x <= this.lift.x + this.lift.width / 2 &&
-      Math.abs(this.player.y - (this.lift.y - this.lift.height / 2)) < 30
-    ) {
-      // Player is standing on the lift
-      this.player.setVelocityY(0);
-
-      // If lift is moving up, move player up too
-      if (this.lift.body.velocity.y < 0) {
-        this.player.y += this.lift.body.velocity.y * (delta / 1000);
-      }
+  }
+  // Callback for touching checkpoints
+  touchCheckpoint(player, checkpoint) {
+    // Only update if this is a new checkpoint
+    if (this.lastCheckpoint.x !== checkpoint.x || this.lastCheckpoint.y !== checkpoint.y) {
+      this.lastCheckpoint = { x: checkpoint.x, y: checkpoint.y };
+      
+      // Visual feedback
+      checkpoint.setAlpha(1); // Make the current checkpoint fully visible
+      
+      // Reset other checkpoints to semi-transparent
+      this.checkpointGroup.getChildren().forEach((cp) => {
+        if (cp !== checkpoint) {
+          cp.setAlpha(0.7);
+        }
+      });
+      
+      // Show checkpoint activated message
+      const checkpointText = this.add
+        .text(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY - 50,
+          "CHECKPOINT ACTIVATED!",
+          {
+            fontSize: "20px",
+            fontFamily: '"Press Start 2P"',
+            color: "#ffffff",
+            stroke: "#000000",
+            strokeThickness: 4,
+          }
+        )
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(100);
+        
+      // Fade out the text after a short delay
+      this.tweens.add({
+        targets: checkpointText,
+        alpha: 0,
+        duration: 1500,
+        delay: 1000,
+        onComplete: () => checkpointText.destroy()
+      });
+      
+      console.log("Checkpoint activated at:", this.lastCheckpoint.x, this.lastCheckpoint.y);
     }
   }
+  
 }

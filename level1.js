@@ -273,8 +273,8 @@ class level1 extends Phaser.Scene {
           .setScale(1.5)
           .play("autarchGuardIdle", true)
           .setCollideWorldBounds(true)
-          .setSize(40, 55)
-          .setOffset(5, 20)
+          .setSize(40, 70)
+        .setOffset(5, 10)
           .setOrigin(0.5, 1)
           .refreshBody();
 
@@ -310,49 +310,80 @@ class level1 extends Phaser.Scene {
 
     // Define the touchGuard function - KEEP ONLY ONE VERSION
     this.touchGuard = function (player, enemy) {
-      if (!enemy.cooldown) {
-        enemy.cooldown = true;
-        
-        // Deduct 10 health points (1 heart)
-        this.health -= 10;
-        window.heart = this.health;
-        updateInventory.call(this);
-        
-        console.log("Player hit! Health:", this.health);
-
-        enemy.anims.stop();
-        enemy.play("autarchGuardAttack", true);
-
-        player.setTint(0xff0000);
-        this.cameras.main.shake(200, 0.01);
-
-        this.time.delayedCall(300, () => {
-          player.clearTint();
-        });
-
-        enemy.once("animationcomplete", () => {
-          // Enemy remains in attack pose
-        });
-
-        this.time.delayedCall(1000, () => {
-          enemy.cooldown = false;
-          enemy.play("autarchGuardIdle", true);
-        });
-
-        if (this.health <= 0) {
-          console.log("Respawning...");
-          this.respawnPlayer();
-          return;
+      // Prevent multiple hits in quick succession
+      if (this.playerInvulnerable) return;
+      
+      // Make player temporarily invulnerable
+      this.playerInvulnerable = true;
+      
+      // Deduct 10 health points (1 heart)
+      this.health -= 10;
+      window.heart = this.health;
+      updateInventory.call(this);
+      
+      // Check if player is moving (has non-zero velocity)
+      const isPlayerMoving = Math.abs(player.body.velocity.x) > 10;
+      
+      if (isPlayerMoving) {
+        // If player is moving, push away from enemy (current logic)
+        if (player.x < enemy.x) {
+          // Player is to the left of enemy, push left (away from enemy)
+          player.setVelocityX(-300);
+        } else {
+          // Player is to the right of enemy, push right (away from enemy)
+          player.setVelocityX(300);
         }
+      } else {
+        // If player is idle, push in the direction they're facing
+        if (player.flipX) {
+          // Player is facing left, push left
+          player.setVelocityX(-300);
+        } else {
+          // Player is facing right, push right
+          player.setVelocityX(300);
+        }
+      }
+      // Add upward velocity for better knockback feel
+      player.setVelocityY(-150);
+
+      console.log("Player hit! Health:", this.health);
+
+      enemy.anims.stop();
+      enemy.play("autarchGuardAttack", true);
+
+      // Visual feedback: tint the player red and shake the camera.
+      player.setTint(0xff0000);
+      this.cameras.main.shake(200, 0.01);
+      this.time.delayedCall(200, () => {
+        player.clearTint();
+      });
+      
+      // Keep invulnerability a bit longer than the tint
+      this.time.delayedCall(1000, () => {
+        this.playerInvulnerable = false;
+      });
+
+      enemy.once("animationcomplete", () => {
+        // Enemy remains in attack pose
+      });
+
+      this.time.delayedCall(1000, () => {
+        enemy.play("autarchGuardIdle", true);
+      });
+
+      if (this.health <= 0) {
+        console.log("Respawning...");
+        this.respawnPlayer();
+        return;
       }
     };
 
-    // Add collision between player and enemies - KEEP ONLY ONE OVERLAP
+    // Add collision between player and enemies
     this.physics.add.overlap(
       this.player,
       this.enemyGroup,
       (player, enemy) => {
-        if(player.x < enemy.x) {
+        if (player.x < enemy.x) {
           player.setVelocityX(-250);
         } else {
           player.setVelocityX(250);
@@ -386,8 +417,8 @@ class level1 extends Phaser.Scene {
     // Completely disable physics body interactions with the world
     this.robot.body.setAllowGravity(false);
     this.robot.body.setImmovable(true);
-    this.robot.body.setSize(50, 50);
-    this.robot.body.setOffset(23, 23);
+    this.robot.body.setSize(50, 70);
+    this.robot.body.setOffset(23, 0);
     this.robot.body.setCollideWorldBounds(true);
     
     // Define floating area for the boss - keep it away from ground
@@ -397,6 +428,10 @@ class level1 extends Phaser.Scene {
       minY: bossY - 400,
       maxY: bossY - 50,  // Limit the lowest position to stay above ground
     };
+
+//     // Debug visualization to see the hitbox
+// this.physics.world.createDebugGraphic();
+// this.robot.setDebug(true, true, 0xff0000);
 
     const floatAround = () => {
       // Only proceed if the robot is active
@@ -488,9 +523,6 @@ class level1 extends Phaser.Scene {
                 
                 // Add transition effect
                 this.cameras.main.fade(1000, 0, 0, 0);
-
-                // Add transition effect
-                this.cameras.main.fade(1000, 0, 0, 0);
                 
                 // Transition to level2
                 this.time.delayedCall(1000, () => {
@@ -556,11 +588,11 @@ class level1 extends Phaser.Scene {
       if (!this.robot.active || this.robot.health <= 0) return;
 
       // Always update the robot's facing direction.
-      if (this.player.x < this.robot.x) {
-        this.robot.setFlipX(true); // Face left
-      } else {
-        this.robot.setFlipX(false); // Face right
-      }
+if (this.player.x < this.robot.x) {
+  this.robot.setFlipX(true); // Face left
+} else {
+  this.robot.setFlipX(false); // Face right
+}
 
       // Prevent the enemy from attacking if the player hasn't passed 2593 pixels.
       if (this.player.x < 2593) {
@@ -579,11 +611,11 @@ class level1 extends Phaser.Scene {
       );
 
       // Make the robot face the player
-      if (this.player.x < this.robot.x) {
-        this.robot.setFlipX(true); // Face left
-      } else {
-        this.robot.setFlipX(false); // Face right
-      }
+if (this.player.x < this.robot.x) {
+  this.robot.setFlipX(true); // Face left
+} else {
+  this.robot.setFlipX(false); // Face right
+}
 
       // If player is within attack range and the robot isn't attacking, attack
       if (distance < 550 && !this.robot.isAttacking) {
@@ -1039,10 +1071,9 @@ function globalHitFire(player, fire) {
     this.health -= 10;
     window.heart = this.health;
     
-    // Visual feedback
+    // Visual feedback: tint the player red and shake the camera.
     player.setTint(0xff0000);
     this.cameras.main.shake(200, 0.01);
-    
     this.time.delayedCall(200, () => {
       player.clearTint();
     });
