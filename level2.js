@@ -150,7 +150,7 @@ class level2 extends Phaser.Scene {
 
     // Continue with door setup
     this.door1 = this.physics.add
-      .sprite(905, 1670, "doors3Png")
+      .sprite(905, 1660, "doors3Png")
       .setImmovable(true);
     this.door1.body.setAllowGravity(false);
 
@@ -305,6 +305,98 @@ class level2 extends Phaser.Scene {
     // Add collision between turrets and ground
     this.physics.add.collider(this.turretGroup, this.groundLayer);
     this.physics.add.collider(this.turretGroup, this.floor);
+
+    //======================================== Notes/Dialogue System ========================================//
+       
+    // Create notes at each spawn point
+    this.notesGroup = this.physics.add.staticGroup();
+    
+    // Find note spawn points from object layer
+    const notePoints = map.filterObjects(
+      "objectLayer",
+      (obj) => obj.name === "note1" || obj.name === "note2" || obj.name === "note3"
+    );
+    
+    // Create invisible trigger zones at each note point
+    notePoints.forEach((point) => {
+      const note = this.notesGroup
+        .create(point.x, point.y, "dialoguePng")
+        .setOrigin(0, 0)  // Keep original origin (top-left)
+        .setAlpha(0); // Make the note invisible
+        
+      // Store reference to specific notes and their messages
+      if (point.name === "note1") {
+        this.note1 = note;
+        note.message = "Personal Log, Former Engineer, Serenities Project\nThey were just girls once. Now, they're something else - faster, stronger, unbreakable. But I see it in their eyes. They still remember what it means to be human. That's why we might still have a chance.";
+      }
+      if (point.name === "note2") {
+        this.note2 = note;
+        note.message = "Decrypted Transmission, Resistance Command\n\"They've breached New Bastion. The outer defenses are failing. We can't hold them much longer. If the Serenities are our last hope, then may whatever remains of the old gods guide them. Humanity must endure.\"";
+      }
+      if (point.name === "note3") {
+        this.note3 = note;
+        note.message = "Classified Report, Resistance Intel Division\nSubject: Autarch Expansion Patterns\n\"They don't just conquer. They harvest. Cities aren't just occupied; they're stripped bare, repurposed. They leave no survivors. No bodies. Just silence and steel. We don't know where they take them. Or why.\"";
+      }
+      
+      // Use the exact size from Tiled without modification
+      if (point.width && point.height) {
+        note.body.setSize(point.width, point.height);
+      }
+    });
+    
+    // Add overlap detection for notes
+    this.physics.add.overlap(
+      this.player,
+      this.notesGroup,
+      this.showNoteMessage,
+      null,
+      this
+    );
+    
+    // Initialize dialogue system
+    this.dialogueActive = false;
+    this.dialogueBox = null;
+    this.dialogueText = null;
+    this.closeButton = null;
+    this.noteTriggered = {}; // Track which notes have been triggered
+
+    if (!this.showNoteMessage) {
+      this.showNoteMessage = function(player, note) {
+        // Only show message if not already triggered
+        if (this.dialogueActive || this.noteTriggered[note.name]) {
+          return;
+        }
+        
+        this.noteTriggered[note.name] = true;
+        this.dialogueActive = true;
+        
+        // Pause player movement
+        this.player.body.setVelocity(0, 0);
+      };
+    }
+    
+    // Add the closeDialogue method if not already defined
+    if (!this.closeDialogue) {
+      this.closeDialogue = function() {
+        if (this.dialogueActive) {
+          // Remove dialogue elements
+          if (this.dialogueBox) this.dialogueBox.destroy();
+          if (this.dialogueText) this.dialogueText.destroy();
+          if (this.closeButton) this.closeButton.destroy();
+          
+          // Reset dialogue state
+          this.dialogueActive = false;
+          
+          // Remove space key listener
+          if (this.spaceKey) this.spaceKey.removeAllListeners();
+        }
+      };
+    
+    
+    
+    }
+
+
 
     // Implement turret attack function
     this.spawnTurretAttackEffect = (turret, damage = 10) => {
@@ -635,6 +727,7 @@ class level2 extends Phaser.Scene {
         obj.name === "memoryDiskBroken3" ||
         obj.name === "memoryDiskBroken4" ||
         obj.name === "memoryDiskBroken5" ||
+        obj.name === "memoryDiskBroken5b" ||
         obj.name === "memoryDiskBroken6" ||
         obj.name === "memoryDiskBroken7" ||
         obj.name === "memoryDiskBroken8"
@@ -657,6 +750,8 @@ class level2 extends Phaser.Scene {
         this.memoryDiskBroken4 = brokenDisk;
       if (point.name === "memoryDiskBroken5")
         this.memoryDiskBroken5 = brokenDisk;
+      if (point.name === "memoryDiskBroken5b")
+        this.memoryDiskBroken5b = brokenDisk;
       if (point.name === "memoryDiskBroken6")
         this.memoryDiskBroken6 = brokenDisk;
       if (point.name === "memoryDiskBroken7")
@@ -836,7 +931,7 @@ class level2 extends Phaser.Scene {
 
           // Add transition effect
           this.cameras.main.fade(1000, 0, 0, 0);
-          
+
           // Transition to level3
           this.scene.start("level3");
         });
@@ -979,6 +1074,9 @@ class level2 extends Phaser.Scene {
       console.log("Player reached death zone at y=1860!");
       this.health = 0;
       window.heart = this.health;
+      // Visual feedback
+      this.player.setTint(0xff0000);
+      this.cameras.main.shake(200, 0.01);
       updateInventory.call(this);
       this.respawnPlayer();
     }
@@ -1285,7 +1383,7 @@ class level2 extends Phaser.Scene {
           attack.destroy();
 
           // Call boss's custom damage handling
-          boss.takeDamage(1);
+          boss.takeDamage(2);
 
           // Visual feedback for boss
           boss.setTint(0xff0000);
@@ -1389,6 +1487,33 @@ class level2 extends Phaser.Scene {
     // Make sure disk exists before trying to destroy it
     if (!disk || !disk.active) return;
 
+    // Store which disk was collected before destroying it
+    let collectedDiskName = "";
+    if (disk === this.memoryDisk1) collectedDiskName = "memoryDisk1";
+    if (disk === this.memoryDisk2) collectedDiskName = "memoryDisk2";
+    if (disk === this.memoryDisk3) collectedDiskName = "memoryDisk3";
+    if (disk === this.memoryDisk4) collectedDiskName = "memoryDisk4";
+    if (disk === this.memoryDisk5) collectedDiskName = "memoryDisk5";
+
+    // Display specific dialogue based on which memory disk was collected
+    if (collectedDiskName === "memoryDisk1") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Recovered Memory Disk, 'Serenity Omega'\n\"They said I was lucky. I survived the integration. I became more than human, less than machine. But if I close my eyes - what's left of them - I can still feel the warmth of the sun before the world turned cold. Before the Autarchs made us ghosts in our own bodies.\"");
+      });
+    } else if (collectedDiskName === "memoryDisk2") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("'Serenity Alpha'\n\"I don't dream anymore. I don't sleep. But I remember. I remember the fire, the screams. I remember what the Autarchs took from us. I was built for war, but I fight for something more - because someone has to.\"");
+      });
+    } else if (collectedDiskName === "memoryDisk3") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Confidential Directive, Project Immortalis\n\"A warrior who cannot die. A soldier who does not fear. The Serenities are not weapons. They are salvation. And if we fail, they will be the last ones left to remember us.\"");
+      });
+    } else if (collectedDiskName === "memoryDisk5") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Fragmented Data Log - Year 2147\n\n\"We thought automation would save us. Instead, it enslaved us. The Autarchs were meant to guide humanity, not replace it. The Council's last order before they fell: 'Find a way to fight back.' If you're reading this, you are the resistance now.\"");
+      });
+    }
+
     disk.destroy();
     this.score += 20;
     console.log("Memory Disk collected! Score:", this.score);
@@ -1399,9 +1524,45 @@ class level2 extends Phaser.Scene {
     updateInventory.call(this);
   }
 
+  // Callback for touching broken disks
   hitBrokenDisk(player, disk) {
     // Make sure disk exists before trying to destroy it
     if (!disk || !disk.active) return;
+
+    // Store which disk was hit before destroying it
+    let hitDiskName = "";
+    if (disk === this.memoryDiskBroken1) hitDiskName = "memoryDiskBroken1";
+    if (disk === this.memoryDiskBroken2) hitDiskName = "memoryDiskBroken2";
+    if (disk === this.memoryDiskBroken3) hitDiskName = "memoryDiskBroken3";
+    if (disk === this.memoryDiskBroken4) hitDiskName = "memoryDiskBroken4";
+    if (disk === this.memoryDiskBroken5) hitDiskName = "memoryDiskBroken5";
+    if (disk === this.memoryDiskBroken5b) hitDiskName = "memoryDiskBroken5b";
+    if (disk === this.memoryDiskBroken6) hitDiskName = "memoryDiskBroken6";
+    if (disk === this.memoryDiskBroken7) hitDiskName = "memoryDiskBroken7";
+    if (disk === this.memoryDiskBroken8) hitDiskName = "memoryDiskBroken8";
+
+    // Display specific dialogue based on which broken disk was hit
+    if (hitDiskName === "memoryDiskBroken3") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Recovered Notebook - Resistance Spy\n\"They tell us Serenities are immortal, that they can't be turned. But I saw one with Autarch markings, issuing commands. Either we're wrong. or someone's lying to us.\"");
+      });
+    } else if (hitDiskName === "memoryDiskBroken4") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Public Announcement - Autarch Broadcast Network\n\"Citizens of New Bastion, rejoice! The Autarchs have ended chaos and ensured peace. The so-called 'resistance' spreads lies to keep you afraid. There is no war. No suffering. Lay down your weapons and embrace the new world.\" (Audio interference detected - decoded transmission embedded: \"DO NOT BELIEVE THEM. THEY ERASE US.\")");
+      });
+    } else if (hitDiskName === "memoryDiskBroken5") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Corrupted Memory Core - Serenities Archive\n\"There was never a war. The Autarchs were chosen, not created. Humanity agreed to step aside. You are the anomaly. You are the error. Accept deletion.\"\n(System override detected. Data authenticity unknown.)");
+      });
+    } else if (hitDiskName === "memoryDiskBroken5b") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Fortified City Council Announcement - Year 2151\n\"The Serenities Project has been permanently shut down due to ethical concerns. There are no active Serenities in operation. Any claims of cybernetic warriors fighting in the wastelands are baseless rumors meant to incite fear and disorder.\"\)");
+      });
+    } else if (hitDiskName === "memoryDiskBroken8") {
+      this.time.delayedCall(300, () => {
+        this.displayDialogue("Autarch Emergency Alert - Do Not Be Deceived\n\"WARNING: The Resistance is an extremist faction using outdated propaganda to destabilize the Autarch Order. They rely on outdated technology and broken cybernetic warriors that malfunction. Trust only official sources. Any 'Serenity' you encounter is a defective machine. Do not hesitate to report them for immediate deactivation.\"");
+      });
+    }
 
     disk.destroy();
     this.health = Math.max(this.health - 10, 0); // Prevent negative health
@@ -1469,6 +1630,103 @@ class level2 extends Phaser.Scene {
       
       console.log("Checkpoint activated at:", this.lastCheckpoint.x, this.lastCheckpoint.y);
     }
+  }
+
+ 
+  // Method to display dialogue
+  displayDialogue(message) {
+    // Close any existing dialogue first
+    if (this.dialogueActive) {
+      this.closeDialogue();
+    }
+    
+    // Set dialogue as active
+    this.dialogueActive = true;
+    
+    // Pause player movement
+    this.player.body.setVelocity(0, 0);
+    
+    // Create dialogue box with the Dialogue.png background
+    this.dialogueBox = this.add.image(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY,
+      'dialoguePng'
+    ).setOrigin(0.5).setScrollFactor(0).setScale(0.5).setDepth(1.1);
+    
+    // Add text - positioned lower in the dialogue box
+    this.dialogueText = this.add.text(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY + 125, // Moved down by 20 pixels
+      message,
+      {
+        fontSize: "14px", // Small font size
+        fontFamily: '"Montserrat"',
+        color: "#000000", // Black text
+        align: "left",
+        wordWrap: { width: this.dialogueBox.width * 0.40 }
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(1.1);
+    
+    // Add close button - also moved down
+    this.closeButton = this.add.text(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY + 180, // Moved down to match the text's new position
+      "[ Close / ESC ]",
+      {
+        fontSize: "10px", // Small font size
+        fontFamily: '"Press Start 2P"',
+        color: "#000", // white text
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setInteractive().setDepth(1.1);
+    
+// Add close functionality for mouse click
+this.closeButton.on('pointerdown', () => {
+  this.closeDialogue();
+});
+    // Add close functionality
+     // Also close with Escape key or Space key
+    this.input.keyboard.once('keydown-ESC', () => {
+      this.closeDialogue();
+    });
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.closeDialogue();
+    });
+  }
+  
+  // Method to close dialogue
+  closeDialogue() {
+    if (this.dialogueActive) {
+      // Remove dialogue elements
+      if (this.dialogueBox) this.dialogueBox.destroy();
+      if (this.dialogueText) this.dialogueText.destroy();
+      if (this.closeButton) this.closeButton.destroy();
+      
+      // Reset dialogue state
+      this.dialogueActive = false;
+      
+      // Add a cooldown to prevent immediate re-triggering
+      this.dialogueCooldown = true;
+      this.time.delayedCall(1000, () => {
+        this.dialogueCooldown = false;
+      });
+    }
+  }
+
+  // Modified showNoteMessage to respect cooldown
+  showNoteMessage(player, note) {
+    // Only show if not already showing a dialogue and not in cooldown
+    if (this.dialogueActive || this.dialogueCooldown) return;
+    
+    // Display the dialogue immediately when player overlaps with note
+    this.displayDialogue(note.message);
+    
+    // Mark this note as triggered to prevent multiple triggers
+    this.noteTriggered[note.name] = true;
+    
+    // Reset the trigger after some time so it can be triggered again
+    this.time.delayedCall(3000, () => {
+      this.noteTriggered[note.name] = false;
+    });
   }
   
 }

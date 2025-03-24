@@ -66,6 +66,49 @@ class level3 extends Phaser.Scene {
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
 
+    // Create spike group
+    this.spikeGroup = this.physics.add.staticGroup();
+    
+    // Find spike spawn points from object layer
+    const spikePoints = map.filterObjects(
+      "objectLayer",
+      (obj) => obj.name === "spike1" || obj.name === "spike2"
+    );
+    
+    // Create spikes at each spawn point
+    spikePoints.forEach((point) => {
+      let spike;
+      
+      if (point.name === "spike1") {
+        spike = this.spikeGroup
+          .create(point.x, point.y)
+          .setScale(0)
+          .setSize(550, 60)  // Wider but shorter hitbox for spike1
+          .setOffset(5, 10)
+          .setOrigin(0.5, 1);
+        this.spike1 = spike;
+      } 
+      else if (point.name === "spike2") {
+        spike = this.spikeGroup
+          .create(point.x, point.y)
+          .setScale(0)
+          .setSize(550, 120)  // Narrower but taller hitbox for spike2
+          .setOffset(5, 10)
+          .setOrigin(0.5, 1);
+        this.spike2 = spike;
+      }
+    });
+    
+    // Add overlap detection for spikes
+    this.spikeDamageActive = false;
+    this.physics.add.overlap(
+      this.player,
+      this.spikeGroup,
+      this.handleSpikeDamage,
+      null,
+      this
+    );
+
     // Initialize checkpoint system
     this.lastCheckpoint = { x: start.x, y: start.y - 100 }; // Default to start position
     this.checkpointGroup = this.physics.add.staticGroup();
@@ -497,7 +540,7 @@ this.boss.setActive(true).setVisible(true);
     this.boss.play("autarchIdle", true);
     
     // Don't try to play animations immediately
-    this.boss.health = 20;
+    this.boss.health = 30;
     this.boss.isAttacking = false;
     this.boss.nextAttackTime = 0;
     
@@ -509,8 +552,8 @@ this.boss.setActive(true).setVisible(true);
     this.boss.body.setCollideWorldBounds(true);
 
     // Debug visualization to see the hitbox
-this.physics.world.createDebugGraphic();
-this.boss.setDebug(true, true, 0xff0000);
+// this.physics.world.createDebugGraphic();
+// this.boss.setDebug(true, true, 0xff0000);
     
     // Define floating area for the boss
     const floatArea = {
@@ -665,7 +708,7 @@ this.boss.setDebug(true, true, 0xff0000);
         (proj, player) => {
           proj.destroy();
           if (player.takeDamage) {
-            player.takeDamage(10);
+            player.takeDamage(25);
           }
         },
         null,
@@ -731,6 +774,9 @@ this.boss.setDebug(true, true, 0xff0000);
       console.log("Player reached death zone at y=964!");
       this.health = 0;
       window.heart = this.health;
+      // Visual feedback
+      this.player.setTint(0xff0000);
+      this.cameras.main.shake(200, 0.01);
       updateInventory.call(this);
       this.respawnPlayer();
     }
@@ -1002,7 +1048,7 @@ this.boss.setDebug(true, true, 0xff0000);
           attack.destroy();
 
           // Call boss's custom damage handling
-          boss.takeDamage(1);
+          boss.takeDamage(3);
 
           // Visual feedback for boss
           boss.setTint(0xff0000);
@@ -1169,6 +1215,41 @@ this.boss.setDebug(true, true, 0xff0000);
     // Check if player is defeated
     if (this.health <= 0) {
       console.log("Player defeated! Respawning...");
+      this.respawnPlayer();
+    }
+  }
+  // Add this method near the other collision handler methods (at the end of the class)
+  handleSpikeDamage(player, spike) {
+    // Prevent multiple damage in quick succession
+    if (this.spikeDamageActive) return;
+    
+    // Set damage cooldown
+    this.spikeDamageActive = true;
+    
+    // Deduct 6 health points
+    this.health -= 6;
+    window.heart = this.health;
+    updateInventory.call(this);
+    
+    console.log("Player hit by spike! Health:", this.health);
+    
+    // Visual feedback
+    player.setTint(0xff0000);
+    this.cameras.main.shake(200, 0.01);
+        
+    // Clear tint after a short delay
+    this.time.delayedCall(200, () => {
+      player.clearTint();
+    });
+    
+    // Reset damage cooldown after 1 second
+    this.time.delayedCall(1000, () => {
+      this.spikeDamageActive = false;
+    });
+    
+    // Check if player is defeated
+    if (this.health <= 0) {
+      console.log("Player defeated by spikes! Respawning...");
       this.respawnPlayer();
     }
   }

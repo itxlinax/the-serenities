@@ -5,24 +5,75 @@ class gameOver extends Phaser.Scene {
   
   preload() {
     this.load.image("gameOverImg", "assets/gameOver.jpg");
-  
+    // Load the spritesheet instead of GIF
+    this.load.spritesheet("gameOverSheet", "assets/GameOver.png", {
+      frameWidth: 1920,  // 5 frames per row
+      frameHeight: 1080 // 10 frames per column
+    });
   }
   
   create() {
     console.log("*** gameover scene");
     this.scene.bringToTop("gameOver");
   
-    // Add image and detect spacebar keypress
-    this.add.image(0, 0, 'gameOverImg').setOrigin(0, 0);
-  
-    // Check for spacebar or any key here
-    let enterDown = this.input.keyboard.addKey("ENTER");
-  
-    // On spacebar event, call the main scene
-    enterDown.on("down", function () {
-      console.log("Jump to respawn scene");
+    // Create animation from the spritesheet
+    this.anims.create({
+      key: 'gameOverAnim',
+      frames: this.anims.generateFrameNumbers('gameOverSheet', { start: 0, end: 49 }),
+      frameRate: 12,
+      repeat: -1
+    });
+    
+    // Add the animated sprite instead of static image
+    const gameOverSprite = this.add.sprite(0, 0, 'gameOverSheet')
+      .setOrigin(0, 0)
+      .play('gameOverAnim');
+    
+    // Add interactive text options in the center of the screen
+    const centerX = this.cameras.main.width / 2;
+    const centerY = this.cameras.main.height / 2;
+    
+    // Style for the text
+    const textStyle = {
+      fontSize: '35px',
+      fontFamily: '"Press Start 2P"',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 6,
+      padding: {
+        x: 20,
+        y: 10
+      }
+    };
+    
+    // Create Respawn button
+    const respawnText = this.add.text(centerX, centerY + 100, 'Respawn', textStyle)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    
+    // Create Continue button
+    const continueText = this.add.text(centerX, centerY + 170, 'Continue', textStyle)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    
+    // Create Main Menu button
+    const mainMenuText = this.add.text(centerX, centerY + 240, 'Main Menu', textStyle)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    
+    // Add hover effects
+    this.input.on('gameobjectover', (pointer, gameObject) => {
+      gameObject.setTint(0xc274ff);
+    });
+    
+    this.input.on('gameobjectout', (pointer, gameObject) => {
+      gameObject.clearTint();
+    });
+    
+    // Add click handlers
+    respawnText.on('pointerdown', () => {
+      console.log("Respawn clicked");
       window.heart = 100;  // Reset to 100 (10 hearts × 10 health)
-      window.memoryDisk = 0;  // Reset memory disk count
       
       // Check if we need to respawn at a specific level
       if (window.currentLevel === "level2") {
@@ -30,13 +81,44 @@ class gameOver extends Phaser.Scene {
       } else if (window.currentLevel === "level3") {
         this.scene.start("level3");
       } else {
-        // Default to level1 or main if no specific level is set
+        // Default to level1 if no specific level is set
         this.scene.start("level1");
       }
-    },
-    this
-    );
+    });
     
+    continueText.on('pointerdown', () => {
+      console.log("Continue clicked");
+      // Continue from last checkpoint without resetting health
+      if (window.currentLevel === "level2") {
+        this.scene.start("level2");
+      } else if (window.currentLevel === "level3") {
+        this.scene.start("level3");
+      } else {
+        this.scene.start("level1");
+      }
+    });
+    
+    mainMenuText.on('pointerdown', () => {
+      console.log("Main Menu clicked");
+      // Reset all stats and go to main menu
+      window.heart = 100;
+      window.score = 0;
+      window.memoryDisk = 0;
+      this.scene.start("main");
+    });
+    
+    // Keep the keyboard controls as a fallback
+    let enterDown = this.input.keyboard.addKey("ENTER");
+    enterDown.on("down", function () {
+      console.log("Enter pressed - respawning");
+      window.heart = 100;
+      if (window.currentLevel === "level2") {
+        this.scene.start("level2");
+      } else if (window.currentLevel === "level3") {
+        this.scene.start("level3");
+      } else {
+        this.scene.start("level1");
+      }
+    }, this);
   }
-  
 }
