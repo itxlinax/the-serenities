@@ -183,6 +183,28 @@
                  "width":0,
                  "x":3134,
                  "y":437.333333333333
+                }, 
+                {
+                 "height":67,
+                 "id":12,
+                 "name":"spike1",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":504,
+                 "x":900,
+                 "y":1
+                }, 
+                {
+                 "height":126,
+                 "id":15,
+                 "name":"spike2",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":511,
+                 "x":3201,
+                 "y":125
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -191,7 +213,7 @@
          "y":0
         }],
  "nextlayerid":8,
- "nextobjectid":12,
+ "nextobjectid":16,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.8.6",
