@@ -12,6 +12,7 @@ reset_stats(wipeCheckpoint){
   window.heart = 100;
   window.score = 0;
   window.memoryDisk = 0;
+  window.disableInventory = true;
   updateInventory.call(this);
 
   if (wipeCheckpoint){
@@ -139,7 +140,6 @@ create() {
     backButton.on('pointerdown', () => {
       console.log("Back to main menu clicked");
       this.reset_stats(true); 
-      updateInventory(true);
       this.scene.start("main");
     });
   });
@@ -148,7 +148,6 @@ create() {
     console.log("Main Menu clicked");
     // Reset all stats and go to main menu
     this.reset_stats(true); 
-    updateInventory(true);
     this.scene.start("main");
   });
   

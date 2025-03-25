@@ -120,7 +120,7 @@ class main extends Phaser.Scene {
 
   create() {
     console.log("*** main scene");
-
+    
     // Set up instruction screens
     this.instructionScreens = [
       { image: "startGif", text: "Press spacebar to Start" },
@@ -252,6 +252,8 @@ class main extends Phaser.Scene {
           this.screenText.setStroke("#000000", 4);
           this.screenText.setBackgroundColor(null);
           this.screenText.setPadding(10, 5);
+
+
         } else {
           // Start the game
           console.log("Jump to level1 scene");
@@ -543,6 +545,7 @@ class main extends Phaser.Scene {
       frameRate: 5,
       repeat: -1,
     });
+
 
     
   }

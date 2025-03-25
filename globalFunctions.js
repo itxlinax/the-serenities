@@ -2,26 +2,28 @@
  * Updates the inventory display with current values
  * Call using: updateInventory.call(this)
  */
-function updateInventory(disable) {
+function updateInventory(data) {
+    //sanity check
+    if (window.heart < 1){
+        window.heart = 0;
+    }
+
     // Prepare inventory data
     this.inventory = {
         memoryDisk: window.memoryDisk,
         heart: window.heart
     };
      
-    console.log('*** updateInventory() Emit event', this.inventory);
+    console.log('*** updateInventory() Emit event', this.inventory, data);
     
     // Send inventory data to the UI scene
     this.invEvent = (event, data) => { 
-        if (!this.scene){return;}
-        this.scene.get('showInventory').events.emit(event, data); 
+        if (this.scene){
+            this.scene.get('showInventory').events.emit(event, data); 
+        };
     };
 
-    if (disable){
-        this.invEvent("NOinventory",this.inventory);
-    }else{
-        this.invEvent("inventory", this.inventory);
-    }
+    this.invEvent("inventory", this.inventory); 
 }
 
 /**

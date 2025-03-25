@@ -106,6 +106,7 @@ this.bgMusic.play();
     // Add attack cooldown properties to the player
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
+    this.playerInvulnerable = false;
 
     // Add this player damage handler
     this.player.takeDamage = (damage) => {

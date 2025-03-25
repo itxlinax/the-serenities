@@ -29,3 +29,4 @@ window.heart = 100  // 10 hearts × 10 health points each
 window.memoryDisk = 0  // Memory disk counter
 window.score = 0  // Player score
 window.currentLevel = "level1"  // Track current level for respawn
+window.disableInventory = false;

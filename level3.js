@@ -61,7 +61,7 @@ class level3 extends Phaser.Scene {
     this.turretSfx = this.sound.add("turret").setVolume(2);
     this.doorSfx = this.sound.add("door").setVolume(0.5);
     // turn on loop, adjust the volume
-this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
+    this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
 
     // Set parallax effect for background layers
     this.backgroundLayer.setScrollFactor(0.5);
@@ -81,6 +81,7 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
     // Add attack cooldown properties to the player
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
+    this.playerInvulnerable = false;
 
     // Create spike group
     this.spikeGroup = this.physics.add.staticGroup();
