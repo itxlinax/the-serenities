@@ -2,9 +2,7 @@
  * Updates the inventory display with current values
  * Call using: updateInventory.call(this)
  */
-function updateInventory() {
-    console.log("*** updateInventory()");
-    
+function updateInventory(disable) {
     // Prepare inventory data
     this.inventory = {
         memoryDisk: window.memoryDisk,
@@ -15,9 +13,15 @@ function updateInventory() {
     
     // Send inventory data to the UI scene
     this.invEvent = (event, data) => { 
+        if (!this.scene){return;}
         this.scene.get('showInventory').events.emit(event, data); 
     };
-    this.invEvent("inventory", this.inventory);
+
+    if (disable){
+        this.invEvent("NOinventory",this.inventory);
+    }else{
+        this.invEvent("inventory", this.inventory);
+    }
 }
 
 /**

@@ -50,6 +50,19 @@ class level3 extends Phaser.Scene {
     let mapWidth = map.widthInPixels;
     let mapHeight = map.heightInPixels;
 
+    //------------------------- Sounds Create ----------------------------------//
+    this.collectSfx = this.sound.add("collect").setVolume(2);
+    this.jumpSfx = this.sound.add("jump").setVolume(2);
+    this.pAttackSfx = this.sound.add("playerAttack").setVolume(2);
+    this.eAttackSfx = this.sound.add("enemyAttack").setVolume(2);
+    this.eDamageSfx = this.sound.add("enemyDamage").setVolume(2);
+    this.pDamageSfx = this.sound.add("playerDamage").setVolume(2);
+    this.lostSfx = this.sound.add("lost").setVolume(2);
+    this.turretSfx = this.sound.add("turret").setVolume(2);
+    this.doorSfx = this.sound.add("door").setVolume(0.5);
+    // turn on loop, adjust the volume
+this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
+
     // Set parallax effect for background layers
     this.backgroundLayer.setScrollFactor(0.5);
 
@@ -57,7 +70,10 @@ class level3 extends Phaser.Scene {
     this.physics.world.bounds.height = this.groundLayer.height;
 
     // Add player
-    this.player = this.physics.add.sprite(start.x, start.y - 100, "serenity");
+    const respawnX = window.lastCheckpointX || start.x;
+    const respawnY = window.lastCheckpointY || start.y - 100;
+    this.player = this.physics.add.sprite(respawnX, respawnY, "serenity");
+   
     this.player.setCollideWorldBounds(true);
     this.player.setScale(0.4);
     this.player.setDepth(1);
@@ -215,14 +231,21 @@ class level3 extends Phaser.Scene {
 
     // Define the touchGuard function - KEEP ONLY ONE VERSION
     this.touchGuard = function (player, enemy) {
-      // Prevent multiple hits in quick succession
+      // Prevent multiple hits in quick succession (sike!)
+      if (enemy.isFinalBoss) return;
       if (this.playerInvulnerable) return;
       
       // Make player temporarily invulnerable
       this.playerInvulnerable = true;
+
+      // 0.5s of cooldown
+       this.time.delayedCall(500, () => {
+         this.playerInvulnerable = false;
+      });
       
       // Deduct 10 health points (1 heart)
       this.health -= 10;
+      this.pDamageSfx.play()
       window.heart = this.health;
       updateInventory.call(this);
       
@@ -255,6 +278,7 @@ class level3 extends Phaser.Scene {
 
       enemy.anims.stop();
       enemy.play("autarchGuardAttack", true);
+      this.eAttackSfx.play()
 
       // Visual feedback: tint the player red and shake the camera.
       player.setTint(0xff0000);
@@ -262,23 +286,24 @@ class level3 extends Phaser.Scene {
       this.time.delayedCall(200, () => {
         player.clearTint();
       });
-      
-      // Keep invulnerability a bit longer than the tint
-      this.time.delayedCall(1000, () => {
-        this.playerInvulnerable = false;
-      });
 
       enemy.once("animationcomplete", () => {
         // Enemy remains in attack pose
       });
 
       this.time.delayedCall(1000, () => {
+        if (enemy.isFinalBoss){return;}
         enemy.play("autarchGuardIdle", true);
       });
 
       if (this.health <= 0) {
-        console.log("Respawning...");
-        this.respawnPlayer();
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level3";
+        this.lostSfx.play()
+        this.bgMusic.stop();
+        // Transition to game over scene
+        this.scene.start("gameOver");
         return;
       }
     };
@@ -304,6 +329,7 @@ class level3 extends Phaser.Scene {
       this.player.takeDamage = (damage) => {
         // Update the player's health
         this.health -= damage;
+        this.pDamageSfx.play()
         console.log("Player hit! Health:", this.health);
 
         // Update global heart value (1 heart = 10 health)
@@ -319,10 +345,15 @@ class level3 extends Phaser.Scene {
         });
 
         // Check if player is defeated
-        if (this.health <= 0) {
-          console.log("Player defeated! Respawning...");
-          this.respawnPlayer();
-        }
+      if (this.health <= 0) {
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level3";
+        this.lostSfx.play()
+        this.bgMusic.stop();
+        // Transition to game over scene immediately
+        this.scene.start("gameOver");
+      }
       };
     }
 
@@ -357,10 +388,11 @@ class level3 extends Phaser.Scene {
           attack.destroy();
 
           if (enemy.health === undefined) enemy.health = 5;
-          enemy.health -= 1;
+          enemy.health -= 1; //do dmg to enemy
 
           // Visual feedback for enemy
           enemy.setTint(0xff0000);
+          this.eDamageSfx.play()
           this.time.delayedCall(200, () => {
             if (enemy && enemy.active) enemy.clearTint();
           });
@@ -383,8 +415,6 @@ class level3 extends Phaser.Scene {
             onComplete: () => damageText.destroy(),
           });
 
-          console.log(`Enemy hit! Remaining health: ${enemy.health}`);
-
           if (enemy.health <= 0) {
             // Stop all tweens associated with this enemy
             this.tweens.getTweensOf(enemy).forEach((tween) => tween.stop());
@@ -392,6 +422,70 @@ class level3 extends Phaser.Scene {
             // Add score when enemy is defeated
             this.score += 25;
             console.log("Enemy defeated! Score:", this.score);
+
+            if (enemy.isFinalBoss){
+              console.log(`Boss hit! Remaining health: ${enemy.health}`);
+              // Set flag for victory screen if boss is defeated
+              if (enemy.health <= 0) {
+                //defeated boss!! yippie!!!
+                console.log("boss defeated screen");
+                window.bossDefeated = true;
+
+                 // Add score when boss is defeated
+                  this.score += 100;
+                  window.score = this.score;
+
+                  // Visual effects for boss defeat
+                  this.cameras.main.flash(500, 255, 255, 255);
+                  this.cameras.main.shake(500, 0.02);
+
+                  // Show victory message
+                  const victoryText = this.add
+                    .text(
+                      this.cameras.main.centerX,
+                      this.cameras.main.centerY - 50,
+                      "BOSS DEFEATED!",
+                      {
+                        fontSize: "32px",
+                        fontFamily: '"Press Start 2P"',
+                        color: "#ffffff",
+                        stroke: "#000000",
+                        strokeThickness: 4,
+                      }
+                    )
+                    .setOrigin(0.5)
+                    .setScrollFactor(0);
+
+                    // Stop all boss-related tweens and timers
+                    this.tweens.getTweensOf(this.boss).forEach((tween) => tween.stop());
+
+                    // Fade out the boss
+                    this.tweens.add({
+                      targets: this.boss,
+                      alpha: 0,
+                      duration: 2000,
+                      onComplete: () => {
+                        this.boss.destroy();
+                      }
+                    });
+
+                    // Return to main menu after delay
+                    this.time.delayedCall(5000, () => {
+                      if (victoryText && victoryText.active) {
+                        victoryText.destroy();
+                      }
+                      // Save player state before transitioning
+                      window.heart = this.health;
+                      window.score = this.score;
+                      window.memoryDisk = window.memoryDisk || 0;
+
+                      // Transition to main menu
+                      this.scene.start("goodEnding");
+                    });
+              }
+            }else{
+              console.log(`Enemy hit! Remaining health: ${enemy.health}`);
+            }
 
             // Properly clean up the enemy
             if (enemy.body) enemy.body.destroy();
@@ -410,25 +504,41 @@ class level3 extends Phaser.Scene {
       );
     };
 
-    // Add respawn function
-    this.respawnPlayer = function () {
-      this.health = 100; // Reset to full health (10 hearts)
-      window.heart = this.health; // Update global heart value
-      updateInventory.call(this); // Update the UI
+    // Keep only this correct implementation:
+    this.respawnPlayer = function() {
+      this.health = 100;  // Reset to full health (10 hearts)
+      window.heart = this.health;  // Update global heart value
+      updateInventory.call(this);  // Update the UI
+      this.health = 100;
+      // Reset health
+      this.health = 100;  // Reset to full health (10 hearts)
+      window.heart = this.health;  // Update global heart value
+      
+      // Reset memory disk count and score
+      window.memoryDisk = 0;
+      window.score = 0;  // Reset global score
+      this.score = 0; 
 
-      // Respawn at the last checkpoint instead of start position
-      this.player.setPosition(this.lastCheckpoint.x, this.lastCheckpoint.y);
+      // Use the last checkpoint position if available, otherwise use start position
+      let respawnX2 = window.lastCheckpointX || start.x;
+      let respawnY2 = window.lastCheckpointY || start.y - 100;
+      
+      this.player.setPosition(respawnX2, respawnY2);
       this.player.clearTint();
       this.player.body.enable = true;
       this.player.setActive(true).setVisible(true);
       this.player.setVelocity(0, 0); // Reset velocity
-
+      
       // Reset camera follow
       this.cameras.main.stopFollow();
       this.cameras.main.startFollow(this.player);
-
+      
       // Clear any active tweens on the player
       this.tweens.killTweensOf(this.player);
+
+      // Properly handle background music
+      this.bgMusic.stop();  // Stop it first to clear any issues
+      this.bgMusic.play();  // Then restart it
     };
 
     //======================================== Camera/ViewPort ========================================//
@@ -533,8 +643,11 @@ class level3 extends Phaser.Scene {
       .setScale(9)
       .refreshBody();
 
+      // Add the boss sprite to the enemyGroup
+      this.enemyGroup.add(this.boss);
+
       // Make sure the boss is visible and active
-this.boss.setActive(true).setVisible(true);
+    this.boss.setActive(true).setVisible(true);
     
     // Play the idle animation
     this.boss.play("autarchIdle", true);
@@ -543,6 +656,7 @@ this.boss.setActive(true).setVisible(true);
     this.boss.health = 30;
     this.boss.isAttacking = false;
     this.boss.nextAttackTime = 0;
+    this.boss.isFinalBoss = true;
     
     // Completely disable physics body interactions with the world
     this.boss.body.setAllowGravity(false);
@@ -552,8 +666,8 @@ this.boss.setActive(true).setVisible(true);
     this.boss.body.setCollideWorldBounds(true);
 
     // Debug visualization to see the hitbox
-// this.physics.world.createDebugGraphic();
-// this.boss.setDebug(true, true, 0xff0000);
+//  this.physics.world.createDebugGraphic();
+//  this.boss.setDebug(true, true, 0xff0000);
     
     // Define floating area for the boss
     const floatArea = {
@@ -600,11 +714,13 @@ this.boss.setActive(true).setVisible(true);
     
       console.log("Boss taking damage:", damage);
       this.boss.health -= damage;
+      this.eDamageSfx.play()
       this.boss.body.setVelocity(0); // Stop movement when hit
     
       if (this.boss.health > 0) {
         // Play attack animation when hit
         this.boss.play("autarchAttack", true);
+        this.eAttackSfx.play()
         
         // Visual feedback
         this.boss.setTint(0xff0000);
@@ -671,6 +787,8 @@ this.boss.setActive(true).setVisible(true);
           window.heart = this.health;
           window.score = this.score;
           window.memoryDisk = window.memoryDisk || 0;
+          window.lastCheckpointX = null ;
+          window.lastCheckpointY = null ;
     
           // Transition to main menu
           this.scene.start("main");
@@ -692,6 +810,7 @@ this.boss.setActive(true).setVisible(true);
       attackEffect.setScale(0.5);
       attackEffect.setDepth(10);
       attackEffect.anims.play("enemyAttackAnim", true);
+      this.turretSfx.play();
     
       // Launch the projectile toward the player
       this.physics.moveToObject(attackEffect, this.player, 300);
@@ -708,7 +827,8 @@ this.boss.setActive(true).setVisible(true);
         (proj, player) => {
           proj.destroy();
           if (player.takeDamage) {
-            player.takeDamage(25);
+              //console.log("ouch!");
+             player.takeDamage(25);
           }
         },
         null,
@@ -778,14 +898,17 @@ this.boss.setActive(true).setVisible(true);
       this.player.setTint(0xff0000);
       this.cameras.main.shake(200, 0.01);
       updateInventory.call(this);
-      this.respawnPlayer();
+    }
+    if (this.health <= 0) {
+      console.log("Player defeated! Game Over...");
+      // Save current level for respawn
+      window.currentLevel = "level3";
+      this.lostSfx.play()
+      this.bgMusic.stop();
+      // Transition to game over scene immediately
+      this.scene.start("gameOver");
     }
     
-    if (this.lastX !== this.player.x || this.lastY !== this.player.y) {
-      // console.log(`Player Position: x=${this.player.x}, y=${this.player.y}`); //pixel
-      this.lastX = this.player.x;
-      this.lastY = this.player.y;
-    }
 
     // Update boss behavior
     if (this.boss && this.boss.active) {
@@ -937,6 +1060,7 @@ this.boss.setActive(true).setVisible(true);
       // Play jump animation when moving up
       if (this.player.body.velocity.y < 0) {
         this.player.anims.play("jump", true);
+        this.jumpSfx.play()
       }
     } else if (this.player.body.velocity.y > 0) {
       // Play fall animation when moving down
@@ -952,6 +1076,7 @@ this.boss.setActive(true).setVisible(true);
         this.player.lastAttackTime = currentTime;
         this.player.setVelocityX(0); // Stop movement while attacking
         this.player.anims.play("attackLaunch", true);
+        this.pAttackSfx.play()
         
         // Delay attack effect slightly so it appears after launch
         this.time.delayedCall(150, () => {
@@ -999,6 +1124,7 @@ this.boss.setActive(true).setVisible(true);
 
         // Visual feedback for enemy
         enemy.setTint(0xff0000);
+        this.eDamageSfx.play()
         this.time.delayedCall(200, () => {
           if (enemy.active) enemy.clearTint();
         });
@@ -1024,6 +1150,7 @@ this.boss.setActive(true).setVisible(true);
 
         console.log(`Enemy hit! Remaining health: ${enemy.health}`);
 
+        //destroying enemy model
         if (enemy.health <= 0) {
           // FIXED: Proper destruction sequence
           this.tweens.getTweensOf(enemy).forEach((tween) => tween.stop());
@@ -1034,58 +1161,22 @@ this.boss.setActive(true).setVisible(true);
           if (enemy === this.enemy1) this.enemy1 = null;
           if (enemy === this.enemy2) this.enemy2 = null;
         }
+
       },
       null,
       this
     );
 
-    // Add overlap detection for boss
-    if (this.boss && this.boss.active) {
-      this.physics.add.overlap(
-        attackEffect,
-        this.boss,
-        (attack, boss) => {
-          attack.destroy();
-
-          // Call boss's custom damage handling
-          boss.takeDamage(3);
-
-          // Visual feedback for boss
-          boss.setTint(0xff0000);
-          this.time.delayedCall(200, () => {
-            if (boss.active) boss.clearTint();
-          });
-
-          // Create damage text for boss
-          const damageText = this.add
-            .text(boss.x, boss.y - 40, "-1", {
-              fontSize: "24px",
-              fontFamily: '"Press Start 2P"',
-              color: "#ff0000",
-              stroke: "#000000",
-              strokeThickness: 2,
-            })
-            .setOrigin(0.5);
-          this.tweens.add({
-            targets: damageText,
-            y: damageText.y - 50,
-            alpha: 0,
-            duration: 800,
-            onComplete: () => damageText.destroy(),
-          });
-
-          console.log(`Boss hit! Remaining health: ${boss.health}`);
-        },
-        null,
-        this
-      );
-    }}
+   
+    }
 
   // Callback for touching checkpoints
   touchCheckpoint(player, checkpoint) {
     // Only update if this is a new checkpoint
     if (this.lastCheckpoint.x !== checkpoint.x || this.lastCheckpoint.y !== checkpoint.y) {
-      this.lastCheckpoint = { x: checkpoint.x, y: checkpoint.y };
+      //this.lastCheckpoint = { x: checkpoint.x, y: checkpoint.y };
+      window.lastCheckpointX = checkpoint.x;
+      window.lastCheckpointY = checkpoint.y;
       
       // Visual feedback
       checkpoint.setAlpha(1); // Make the current checkpoint fully visible
@@ -1135,6 +1226,7 @@ this.boss.setActive(true).setVisible(true);
 
       // Deduct health points
       this.health -= 20;
+      this.pDamageSfx.play()
       window.heart = this.health;
 
       console.log("Hit by superglitch! Health:", this.health);
@@ -1159,8 +1251,13 @@ this.boss.setActive(true).setVisible(true);
 
       // Check if player is defeated
       if (this.health <= 0) {
-        console.log("Player defeated! Respawning...");
-        this.respawnPlayer();
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level3";
+        this.lostSfx.play()
+        this.bgMusic.stop();
+        // Transition to game over scene immediately
+        this.scene.start("gameOver");
       }
     }
   }
@@ -1171,13 +1268,15 @@ this.boss.setActive(true).setVisible(true);
     food.disableBody(true, true);
     
     // Add score
-    this.score += 10;
+    this.health += 5;
+    this.collectSfx.play()
     console.log("Score:", this.score);
   }
 
   collectHeart(player, heart) {
     console.log("*** player overlap heart");
     heart.disableBody(true, true);
+    this.collectSfx.play()
     
     // Increase health (up to max 100)
     this.health = Math.min(100, this.health + 10);
@@ -1191,6 +1290,7 @@ this.boss.setActive(true).setVisible(true);
   collectMemoryDisk(player, disk) {
     console.log("*** player overlap memory disk");
     disk.disableBody(true, true);
+    this.collectSfx.play()
     
     // Increment memory disk counter
     window.memoryDisk++;
@@ -1203,9 +1303,11 @@ this.boss.setActive(true).setVisible(true);
   hitBrokenDisk(player, disk) {
     console.log("*** player overlap broken memory disk");
     disk.disableBody(true, true);
+    this.collectSfx.play()
     
     // Deduct health
     this.health -= 10;
+    this.pDamageSfx.play()
     window.heart = this.health;
     
     // Update UI
@@ -1228,6 +1330,7 @@ this.boss.setActive(true).setVisible(true);
     
     // Deduct 6 health points
     this.health -= 6;
+    this.pDamageSfx.play()
     window.heart = this.health;
     updateInventory.call(this);
     
@@ -1249,8 +1352,13 @@ this.boss.setActive(true).setVisible(true);
     
     // Check if player is defeated
     if (this.health <= 0) {
-      console.log("Player defeated by spikes! Respawning...");
-      this.respawnPlayer();
+      console.log("Player defeated! Game Over...");
+      // Save current level for respawn
+      window.currentLevel = "level3";
+      this.lostSfx.play()
+      this.bgMusic.stop();
+      // Transition to game over scene immediately
+      this.scene.start("gameOver");
     }
   }
 }

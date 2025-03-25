@@ -54,10 +54,24 @@ class showInventory extends Phaser.Scene {
                
         // Listen for inventory updates
         this.events.on('inventory', this.updateScreen, this);
+        this.events.on('NOinventory', this.closeScreen, this);
+    }
+
+    closeScreen(data){
+        console.log(1);
+        this.diskNum.setVisible(false);
+        this.memoryDisk.setVisible(false);
+        for (let i = 0; i < this.hearts.length; i++) {
+            this.hearts[i].setVisible(false);
+        }
     }
 
     updateScreen(data) {
-        console.log('Received event inventory', data);
+        console.log('Received event inventory',data)
+
+        //make memory disk visible
+        this.diskNum.setVisible(true);
+        this.memoryDisk.setVisible(true);
 
         // Update memory disk counter
         this.diskNum.setText(data.memoryDisk);

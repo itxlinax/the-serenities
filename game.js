@@ -18,7 +18,7 @@ var config = {
     backgroundColor: '#000000',
     pixelArt: true,
     // Register all scenes in the game
-    scene: [main, level1, level2, level3, gameOver, showInventory]
+    scene: [main, level1, level2, level3, gameOver, goodEnding, showInventory]
 };
 
 // Initialize the Phaser game instance

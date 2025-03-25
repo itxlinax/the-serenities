@@ -98,6 +98,19 @@ class level2 extends Phaser.Scene {
     let mapWidth = map.widthInPixels;
     let mapHeight = map.heightInPixels;
 
+    //------------------------- Sounds Create ----------------------------------//
+    this.collectSfx = this.sound.add("collect").setVolume(2);
+    this.jumpSfx = this.sound.add("jump").setVolume(2);
+    this.pAttackSfx = this.sound.add("playerAttack").setVolume(2);
+    this.eAttackSfx = this.sound.add("enemyAttack").setVolume(2);
+    this.eDamageSfx = this.sound.add("enemyDamage").setVolume(2);
+    this.pDamageSfx = this.sound.add("playerDamage").setVolume(2);
+    this.lostSfx = this.sound.add("lost").setVolume(2);
+    this.turretSfx = this.sound.add("turret").setVolume(2);
+    this.doorSfx = this.sound.add("door").setVolume(0.5);
+    // turn on loop, adjust the volume
+this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
+
     // Set parallax effect for background layers
     this.background1Layer.setScrollFactor(0.5);
     this.background2Layer.setScrollFactor(0.6);
@@ -107,7 +120,10 @@ class level2 extends Phaser.Scene {
     this.physics.world.bounds.height = this.groundLayer.height;
 
     // Add player
-    this.player = this.physics.add.sprite(start.x, start.y - 100, "serenity");
+    const respawnX = window.lastCheckpointX || start.x;
+    const respawnY = window.lastCheckpointY || start.y - 100;
+    this.player = this.physics.add.sprite(respawnX, respawnY, "serenity");
+
     this.player.setCollideWorldBounds(true);
     this.player.setScale(0.4);
     this.player.setDepth(1);
@@ -422,6 +438,7 @@ class level2 extends Phaser.Scene {
       attackEffect.setScale(0.8);
       attackEffect.setDepth(10);
       attackEffect.anims.play("enemyAttackAnim", true);
+      this.turretSfx.play();
 
       // Launch the projectile downward with a slight angle toward player
       const angle = Phaser.Math.Angle.Between(
@@ -490,17 +507,23 @@ class level2 extends Phaser.Scene {
     };
 
     // Define the touchGuard function - KEEP ONLY ONE VERSION
-    this.touchGuard = function (player, enemy) {
-      // Prevent multiple hits in quick succession
-      if (this.playerInvulnerable) return;
-      
-      // Make player temporarily invulnerable
-      this.playerInvulnerable = true;
-      
+    this.touchGuard = function (player, enemy) { 
+       //haha sike sucka (player has super armour)
+       if (this.playerInvulnerable){return;}
+           
       // Deduct 10 health points (1 heart)
       this.health -= 10;
+      this.pDamageSfx.play()
       window.heart = this.health;
       updateInventory.call(this);
+
+      //grant them super armour
+      this.playerInvulnerable = true;
+
+      // 0.5s of cooldown
+      this.time.delayedCall(500, () => {
+        this.playerInvulnerable = false;
+      });
       
       // Check if player is moving (has non-zero velocity)
       const isPlayerMoving = Math.abs(player.body.velocity.x) > 10;
@@ -531,6 +554,7 @@ class level2 extends Phaser.Scene {
 
       enemy.anims.stop();
       enemy.play("autarchGuardAttack", true);
+      this.eAttackSfx.play()
 
       // Visual feedback: tint the player red and shake the camera.
       player.setTint(0xff0000);
@@ -539,11 +563,6 @@ class level2 extends Phaser.Scene {
         player.clearTint();
       });
       
-      // Keep invulnerability a bit longer than the tint
-      this.time.delayedCall(1000, () => {
-        this.playerInvulnerable = false;
-      });
-
       enemy.once("animationcomplete", () => {
         // Enemy remains in attack pose
       });
@@ -553,9 +572,13 @@ class level2 extends Phaser.Scene {
       });
 
       if (this.health <= 0) {
-        console.log("Respawning...");
-        this.respawnPlayer();
-        return;
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level2";
+        this.lostSfx.play()
+        this.bgMusic.stop(); 
+        // Transition to game over scene immediately
+        this.scene.start("gameOver");
       }
     };
 
@@ -580,6 +603,7 @@ class level2 extends Phaser.Scene {
       this.player.takeDamage = (damage) => {
         // Update the player's health
         this.health -= damage;
+        this.pDamageSfx.play()
         console.log("Player hit! Health:", this.health);
 
         // Update global heart value (1 heart = 10 health)
@@ -596,31 +620,50 @@ class level2 extends Phaser.Scene {
 
         // Check if player is defeated
         if (this.health <= 0) {
-          console.log("Player defeated! Respawning...");
-          this.respawnPlayer();
+          console.log("Player defeated! Game Over...");
+          // Save current level for respawn
+          window.currentLevel = "level2";
+          this.lostSfx.play()
+          this.bgMusic.stop(); 
+          // Transition to game over scene
+          this.scene.start("gameOver");
+          return;
         }
       };
     }
 
-    // Add respawn function
-    this.respawnPlayer = function () {
-      this.health = 100; // Reset to full health (10 hearts)
-      window.heart = this.health; // Update global heart value
-      updateInventory.call(this); // Update the UI
+    // Keep only this correct implementation:
+    this.respawnPlayer = function() {
+      
+      // Reset health
+      this.health = 100;  // Reset to full health (10 hearts)
+      window.heart = this.health;  // Update global heart value
+      updateInventory.call(this);  // Update the UI
+      
+      // Reset memory disk count and score
+      window.memoryDisk = 0;
+      window.score = 0;  // Reset global score
+      this.score = 0; 
+      
+      let respawnX2 = window.lastCheckpointX || start.x;
+      let respawnY2 = window.lastCheckpointY || start.y - 100;
+      this.player.setPosition(respawnX2, respawnY2);
 
-      // Respawn at the last checkpoint instead of start position
-      this.player.setPosition(this.lastCheckpoint.x, this.lastCheckpoint.y);
       this.player.clearTint();
       this.player.body.enable = true;
       this.player.setActive(true).setVisible(true);
       this.player.setVelocity(0, 0); // Reset velocity
-
+      
       // Reset camera follow
       this.cameras.main.stopFollow();
       this.cameras.main.startFollow(this.player);
-
+      
       // Clear any active tweens on the player
       this.tweens.killTweensOf(this.player);
+
+     // Properly handle background music
+      this.bgMusic.stop();  // Stop it first to clear any issues
+      this.bgMusic.play();  // Then restart it
     };
 
     //======================================== Camera/ViewPort ========================================//
@@ -928,12 +971,17 @@ class level2 extends Phaser.Scene {
           window.heart = this.health;
           window.score = this.score;
           window.memoryDisk = window.memoryDisk || 0;
+          window.lastCheckpointX = null ;
+          window.lastCheckpointY = null ;
 
           // Add transition effect
           this.cameras.main.fade(1000, 0, 0, 0);
 
           // Transition to level3
-          this.scene.start("level3");
+          this.time.delayedCall(1000, () => {
+            this.scene.start("level3");
+          });
+          
         });
       }
     };
@@ -948,6 +996,7 @@ class level2 extends Phaser.Scene {
       attackEffect.setScale(1);
       attackEffect.setDepth(10);
       attackEffect.anims.play("enemyAttackAnim", true);
+      this.turretSfx.play();
 
       // Launch the projectile toward the player
       this.physics.moveToObject(attackEffect, this.player, 400);
@@ -1028,6 +1077,7 @@ class level2 extends Phaser.Scene {
         this.boss.isAttacking = true;
         if (this.boss.health > 5) {
           this.boss.play("autarchRobotPCAttack", true);
+          this.eAttackSfx.play()
           this.time.delayedCall(
             500,
             () => {
@@ -1065,7 +1115,9 @@ class level2 extends Phaser.Scene {
 
   update() {
     // collectables n door destroy
-    if (this.score >= 50) {
+    if (this.score >= 20 && this.health >= 100 && !this.door1.destroyed){
+      this.door1.destroyed = true; // Set flag to true
+      this.doorSfx.play();
       this.door1.destroy();
     }
 
@@ -1232,6 +1284,7 @@ class level2 extends Phaser.Scene {
       // Play jump animation when moving up
       if (this.player.body.velocity.y < 0) {
         this.player.anims.play("jump", true);
+        this.jumpSfx.play()
       }
     } else if (this.player.body.velocity.y > 0) {
       // Play fall animation when moving down
@@ -1247,6 +1300,7 @@ class level2 extends Phaser.Scene {
         this.player.lastAttackTime = currentTime;
         this.player.setVelocityX(0); // Stop movement while attacking
         this.player.anims.play("attackLaunch", true);
+        this.pAttackSfx.play()
         
         // Delay attack effect slightly so it appears after launch
         this.time.delayedCall(150, () => {
@@ -1316,10 +1370,11 @@ class level2 extends Phaser.Scene {
         attack.destroy();
 
         if (enemy.health === undefined) enemy.health = 5;
-        enemy.health -= 1;
+        enemy.health -= 1; //do dmg
 
         // Visual feedback for enemy
         enemy.setTint(0xff0000);
+        this.eDamageSfx.play()
         this.time.delayedCall(200, () => {
           if (enemy && enemy.active) enemy.clearTint();
         });
@@ -1387,6 +1442,7 @@ class level2 extends Phaser.Scene {
 
           // Visual feedback for boss
           boss.setTint(0xff0000);
+          this.eDamageSfx.play()
           this.time.delayedCall(200, () => {
             if (boss.active) boss.clearTint();
           });
@@ -1462,8 +1518,9 @@ class level2 extends Phaser.Scene {
     if (!food || !food.active) return;
 
     food.destroy();
-    this.score += 10;
-    console.log("Food collected! Score:", this.score);
+    this.health += 5;
+    this.collectSfx.play()
+    console.log("Food collected! Health:", this.health);
 
     // Update global score
     window.score = this.score;
@@ -1475,6 +1532,7 @@ class level2 extends Phaser.Scene {
     if (!heart || !heart.active) return;
 
     heart.destroy();
+    this.collectSfx.play()
     this.health = Math.min(this.health + 10, 100); // Cap at 100 health
     console.log("Heart collected! Health:", this.health);
 
@@ -1486,6 +1544,7 @@ class level2 extends Phaser.Scene {
   collectMemoryDisk(player, disk) {
     // Make sure disk exists before trying to destroy it
     if (!disk || !disk.active) return;
+    
 
     // Store which disk was collected before destroying it
     let collectedDiskName = "";
@@ -1515,6 +1574,7 @@ class level2 extends Phaser.Scene {
     }
 
     disk.destroy();
+    this.collectSfx.play()
     this.score += 20;
     console.log("Memory Disk collected! Score:", this.score);
 
@@ -1565,6 +1625,7 @@ class level2 extends Phaser.Scene {
     }
 
     disk.destroy();
+    this.pDamageSfx.play()
     this.health = Math.max(this.health - 10, 0); // Prevent negative health
     console.log("Broken Disk hit! Health:", this.health);
 
@@ -1589,7 +1650,8 @@ class level2 extends Phaser.Scene {
   touchCheckpoint(player, checkpoint) {
     // Only update if this is a new checkpoint
     if (this.lastCheckpoint.x !== checkpoint.x || this.lastCheckpoint.y !== checkpoint.y) {
-      this.lastCheckpoint = { x: checkpoint.x, y: checkpoint.y };
+      window.lastCheckpointX = checkpoint.x;
+      window.lastCheckpointY = checkpoint.y;
       
       // Visual feedback
       checkpoint.setAlpha(1); // Make the current checkpoint fully visible

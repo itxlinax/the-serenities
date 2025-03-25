@@ -71,8 +71,21 @@ class level1 extends Phaser.Scene {
     let mapWidth = map.widthInPixels;
     let mapHeight = map.heightInPixels;
 
-    //this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
-    //this.physics.world.setBounds(0, 0, mapWidth, mapHeight);
+     //------------------------- Sounds Create ----------------------------------//
+     this.collectSfx = this.sound.add("collect").setVolume(2);
+     this.jumpSfx = this.sound.add("jump").setVolume(2);
+     this.pAttackSfx = this.sound.add("playerAttack").setVolume(2);
+     this.eAttackSfx = this.sound.add("enemyAttack").setVolume(2);
+     this.eDamageSfx = this.sound.add("enemyDamage").setVolume(2);
+     this.pDamageSfx = this.sound.add("playerDamage").setVolume(2);
+     this.lostSfx = this.sound.add("lost").setVolume(2);
+     this.turretSfx = this.sound.add("turret").setVolume(2);
+     this.doorSfx = this.sound.add("door").setVolume(0.5);
+
+     // turn on loop, adjust the volume
+this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
+// start the background musicc
+this.bgMusic.play();
 
     // Set parallax effect for background layers
     this.background1Layer.setScrollFactor(0.5);
@@ -96,14 +109,16 @@ class level1 extends Phaser.Scene {
 
     // Add this player damage handler
     this.player.takeDamage = (damage) => {
+
       // Update the player's health
       this.health -= damage;
+      this.pDamageSfx.play()
       console.log("Player hit by robot! Health:", this.health);
       
       // Update global heart value (1 heart = 10 health)
       window.heart = this.health;
       updateInventory.call(this);
-      
+
       // Visual feedback
       this.player.setTint(0xff0000);
       this.cameras.main.shake(200, 0.01);
@@ -114,8 +129,13 @@ class level1 extends Phaser.Scene {
       
       // Check if player is defeated
       if (this.health <= 0) {
-        console.log("Player defeated! Respawning...");
-        this.respawnPlayer();
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level1";
+        this.lostSfx.play()
+        this.bgMusic.stop(); 
+        // Transition to game over scene immediately
+        this.scene.start("gameOver");
       }
     };
 
@@ -171,6 +191,15 @@ class level1 extends Phaser.Scene {
       this.health = 100;  // Reset to full health (10 hearts)
       window.heart = this.health;  // Update global heart value
       updateInventory.call(this);  // Update the UI
+      this.health = 100;
+      // Reset health
+      this.health = 100;  // Reset to full health (10 hearts)
+      window.heart = this.health;  // Update global heart value
+      
+      // Reset memory disk count and score
+      window.memoryDisk = 0;
+      window.score = 0;  // Reset global score
+      this.score = 0; 
       
       this.player.setPosition(start.x, start.y - 100);
       this.player.clearTint();
@@ -184,6 +213,10 @@ class level1 extends Phaser.Scene {
       
       // Clear any active tweens on the player
       this.tweens.killTweensOf(this.player);
+
+      // Properly handle background music
+      this.bgMusic.stop();  // Stop it first to clear any issues
+      this.bgMusic.play();  // Then restart it
     };
     
     //======================================== Collectables ========================================//
@@ -310,16 +343,16 @@ class level1 extends Phaser.Scene {
 
     // Define the touchGuard function - KEEP ONLY ONE VERSION
     this.touchGuard = function (player, enemy) {
-      // Prevent multiple hits in quick succession
-      if (this.playerInvulnerable) return;
-      
-      // Make player temporarily invulnerable
-      this.playerInvulnerable = true;
+
+      //cooldown with playerinvulnerable
+      if (this.playerInvulnerable){return;}
       
       // Deduct 10 health points (1 heart)
       this.health -= 10;
+      this.pDamageSfx.play()
       window.heart = this.health;
       updateInventory.call(this);
+      this.playerInvulnerable = true;
       
       // Check if player is moving (has non-zero velocity)
       const isPlayerMoving = Math.abs(player.body.velocity.x) > 10;
@@ -350,6 +383,7 @@ class level1 extends Phaser.Scene {
 
       enemy.anims.stop();
       enemy.play("autarchGuardAttack", true);
+      this.eAttackSfx.play()
 
       // Visual feedback: tint the player red and shake the camera.
       player.setTint(0xff0000);
@@ -359,7 +393,7 @@ class level1 extends Phaser.Scene {
       });
       
       // Keep invulnerability a bit longer than the tint
-      this.time.delayedCall(1000, () => {
+      this.time.delayedCall(500, () => {
         this.playerInvulnerable = false;
       });
 
@@ -372,8 +406,13 @@ class level1 extends Phaser.Scene {
       });
 
       if (this.health <= 0) {
-        console.log("Respawning...");
-        this.respawnPlayer();
+        console.log("Player defeated! Game Over...");
+        // Save current level for respawn
+        window.currentLevel = "level1";
+        this.lostSfx.play()
+        this.bgMusic.stop(); // 
+        // Transition to game over scene
+        this.scene.start("gameOver");
         return;
       }
     };
@@ -466,6 +505,8 @@ class level1 extends Phaser.Scene {
 
         // 𝗔𝗗𝗗 𝗧𝗛𝗜𝗦 𝗗𝗔𝗠𝗔𝗚𝗘 𝗛𝗔𝗡𝗗𝗟𝗜𝗡𝗚 𝗖𝗢𝗗𝗘 𝗛𝗘𝗥𝗘 ▼
         this.robot.takeDamage = (damage) => {
+
+          //check if robot is alive
           if (!this.robot.active || this.robot.health <= 0) return;
     
           this.robot.health -= damage;
@@ -473,6 +514,7 @@ class level1 extends Phaser.Scene {
     
           if (this.robot.health > 0) {
             this.robot.play("autarchRobotDamaged", true);
+            this.eDamageSfx.play()
             this.time.delayedCall(500, () => {
               if (this.robot.active && !this.robot.isAttacking) {
                 this.robot.play("autarchRobotIdle", true);
@@ -520,12 +562,14 @@ class level1 extends Phaser.Scene {
                 window.heart = this.health;
                 window.score = this.score;
                 window.memoryDisk = window.memoryDisk || 0;
+                window.lastCheckpointX = null ;
+                window.lastCheckpointY = null ;
                 
                 // Add transition effect
                 this.cameras.main.fade(1000, 0, 0, 0);
                 
                 // Transition to level2
-                this.time.delayedCall(1000, () => {
+                this.time.delayedCall(3000, () => {
                   this.scene.start("level2");
                 });
               });
@@ -545,6 +589,7 @@ class level1 extends Phaser.Scene {
       attackEffect.setScale(1); // Lower scale than the robot to be noticeable.
       attackEffect.setDepth(10);
       attackEffect.anims.play("enemyAttackAnim", true);
+      this.turretSfx.play();
 
       // Launch the projectile toward the player.
       this.physics.moveToObject(attackEffect, this.player, 400);
@@ -554,8 +599,10 @@ class level1 extends Phaser.Scene {
         attackEffect,
         this.player,
         (proj, player) => {
+          //destroy projectile so it doesn't spam hit
           proj.destroy();
-          if (player.takeDamage) {
+          //damage player if player don't have super amour
+          if (player.takeDamage && !this.playerInvulnerable) {
             player.takeDamage(damage);
           }
           // Visual feedback: tint the player red and shake the camera.
@@ -622,6 +669,7 @@ if (this.player.x < this.robot.x) {
         this.robot.isAttacking = true;
         if (this.robot.health > 5) {
           this.robot.play("autarchRobotAttack", true);
+          this.eAttackSfx.play()
           this.time.delayedCall(
             500,
             () => {
@@ -683,21 +731,26 @@ if (this.player.x < this.robot.x) {
             this.physics.add.overlap(this.player, memoryDiskObjects, globalCollectMemoryDisk, null, this);
           }
         }
-
   }
 
   update() {
 
     // collectables n door destroy
-    if (this.score >= 20 && this.health >= 100){
+    if (this.score >= 20 && this.health >= 100 && !this.door1.destroyed){
+      this.door1.destroyed = true; // Set flag to true
+      this.doorSfx.play();
       this.door1.destroy();
     }
 
-    if (this.score >= 70){
+    if (this.score >= 70 && this.door2 && !this.door2.destroyed){
+      this.door2.destroyed = true; // Set flag to true
+      this.doorSfx.play();
       this.door2.destroy();
     }
 
-    if (this.score >= 110){
+    if (this.score >= 110 && this.door3 && !this.door3.destroyed){
+      this.door3.destroyed = true; // Set flag to true
+      this.doorSfx.play();
       this.door3.destroy();
     }
 
@@ -848,6 +901,7 @@ if (this.player.x < this.robot.x) {
       // Play jump animation when moving up
       if (this.player.body.velocity.y < 0) {
         this.player.anims.play("jump", true);
+        this.jumpSfx.play()
       }
     } else if (this.player.body.velocity.y > 0) {
       // Play fall animation when moving down
@@ -863,6 +917,7 @@ if (this.player.x < this.robot.x) {
         this.player.lastAttackTime = currentTime;
         this.player.setVelocityX(0); // Stop movement while attacking
         this.player.anims.play("attackLaunch", true);
+        this.pAttackSfx.play()
         
         // Delay attack effect slightly so it appears after launch
         this.time.delayedCall(150, () => {
@@ -896,7 +951,7 @@ if (this.player.x < this.robot.x) {
     // Overlap detection for normal enemies in enemyGroup
     this.physics.add.overlap(
       attackEffect,
-      this.enemyGroup,
+      this.enemyGroup, 
       (attack, enemy) => {
         if (!enemy || !enemy.active) {
           attack.destroy();
@@ -906,10 +961,11 @@ if (this.player.x < this.robot.x) {
         attack.destroy();
 
         if (enemy.health === undefined) enemy.health = 5;
-        enemy.health -= 1;
+        enemy.health -= 1; //do dmg
 
         // Visual feedback for enemy
         enemy.setTint(0xff0000);
+        this.eDamageSfx.play()
         this.time.delayedCall(200, () => {
           if (enemy && enemy.active) enemy.clearTint();
         });
@@ -1011,12 +1067,14 @@ if (this.player.x < this.robot.x) {
   collectFood(player, food) {
     food.destroy();
     this.health += 5;
+    this.collectSfx.play()
     console.log("Food collected! Health:", this.health);
   }
 
   // Callback for collecting hearts
   collectHeart(player, heart) {
     heart.disableBody(true, true);
+    this.collectSfx.play()
     
     // Add 10 health points (1 heart)
     this.health = Math.min(this.health + 10, 100);  // Cap at 100 health (10 hearts)
@@ -1029,6 +1087,7 @@ if (this.player.x < this.robot.x) {
   // Callback for collecting memory disks
   collectMemoryDisk(player, disk) {
     disk.destroy();
+    this.collectSfx.play()
     this.score += 20;
     // Update the global memory disk counter
     window.memoryDisk++;
@@ -1041,6 +1100,7 @@ if (this.player.x < this.robot.x) {
   hitBrokenDisk(player, brokenDisk) {
     brokenDisk.destroy();
     this.health -= 5;
+    this.pDamageSfx.play();
     console.log("Hit a broken disk! Health:", this.health);
 
     // Tint the player red for 200ms to show damage
@@ -1052,10 +1112,15 @@ if (this.player.x < this.robot.x) {
     // Shake the camera to simulate screen vibration
     this.cameras.main.shake(200, 0.01); // 200ms duration, 0.01 intensity
 
+    // Check if player is defeated
     if (this.health <= 0) {
-      console.log("Respawning...");
-      this.respawnPlayer();
-      return;
+      console.log("Player defeated! Game Over...");
+      // Save current level for respawn
+      window.currentLevel = "level1";
+      this.lostSfx.play()
+      this.bgMusic.stop(); // Stop background music
+      // Transition to game over scene immediately
+      this.scene.start("gameOver");
     }
   }
 }
@@ -1069,6 +1134,7 @@ function globalHitFire(player, fire) {
     
     // Deduct health
     this.health -= 10;
+    this.pDamageSfx.play()
     window.heart = this.health;
     
     // Visual feedback: tint the player red and shake the camera.
@@ -1083,7 +1149,13 @@ function globalHitFire(player, fire) {
     
     // Check if player is defeated
     if (this.health <= 0) {
-      this.respawnPlayer();
+      console.log("Player defeated! Game Over...");
+      // Save current level for respawn
+      window.currentLevel = "level1";
+      this.lostSfx.play()
+      this.bgMusic.stop(); //   Stop background music
+      // Transition to game over scene immediately
+      this.scene.start("gameOver");
     }
   }
 }

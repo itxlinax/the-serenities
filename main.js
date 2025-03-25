@@ -101,6 +101,21 @@ class main extends Phaser.Scene {
     this.load.image("avoid1", "assets/Avoid1.jpg");
     this.load.image("avoid2", "assets/Avoid2.jpg");
     this.load.image("enemies", "assets/Enemies.jpg");
+
+
+  //----------------------- Audio --------------------------//
+  this.load.audio("collect","assets/collect.wav");
+  this.load.audio("jump","assets/jump.mp3");
+  this.load.audio("playerAttack","assets/playerAttack.mp3");
+  this.load.audio("enemyAttack","assets/enemyAttack.wav");
+  this.load.audio("enemyDamage","assets/enemyDamaged1.mp3");
+  this.load.audio("playerDamage","assets/pDamaged.mp3");
+  this.load.audio("lost","assets/lost.wav");
+  this.load.audio("turret","assets/enemyAttack.wav");
+  this.load.audio("bgmusic","assets/bg_music.mp3");
+  this.load.audio("door","assets/door.wav");
+
+
   }
 
   create() {
@@ -528,5 +543,7 @@ class main extends Phaser.Scene {
       frameRate: 5,
       repeat: -1,
     });
+
+    
   }
 }
