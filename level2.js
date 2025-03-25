@@ -1115,7 +1115,7 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
 
   update() {
     // collectables n door destroy
-    if (this.score >= 20 && this.health >= 100 && !this.door1.destroyed){
+    if (this.score >= 50 && !this.door1.destroyed){
       this.door1.destroyed = true; // Set flag to true
       this.doorSfx.play();
       this.door1.destroy();
