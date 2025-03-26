@@ -521,7 +521,7 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
       window.heart = this.health;
       updateInventory.call(this);
 
-      //grant them super armour
+      // Grant them protection for cooldown
       this.playerInvulnerable = true;
 
       // 0.5s of cooldown
