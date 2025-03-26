@@ -36,16 +36,19 @@ create() {
 
   // Create animation from the spritesheet
   this.anims.create({
-    key: 'gameOverAnim',
-    frames: this.anims.generateFrameNumbers('gameOverSheet', { start: 0, end: 49 }),
+    key: "gameOverAnim",
+    frames: [
+      ...this.anims.generateFrameNumbers("gameOverSheet", { start: 0, end: 45 }),
+      ...this.anims.generateFrameNumbers("gameOverSheet", { start: 44, end: 1 })
+    ],
     frameRate: 12,
     repeat: -1
   });
   
   // Add the animated sprite instead of static image
-  const gameOverSprite = this.add.sprite(0, 0, 'gameOverSheet')
-    .setOrigin(0, 0)
-    .play('gameOverAnim');
+  this.gameOverSprite = this.add.sprite(0, 0, "gameOverSheet")
+    .setOrigin(0)
+    .play("gameOverAnim");
   
   // Add interactive text options in the center of the screen
   const centerX = this.cameras.main.width / 2;
