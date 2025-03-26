@@ -47,11 +47,8 @@ class level2 extends Phaser.Scene {
     }
 
     // Make sure global values are set
-    // window.heart = this.health;
-    // window.score = this.score;
-
-    this.health = window.heart;
-    this.score = window.score;
+    window.heart = this.health;
+    window.score = this.score;
 
     // Update UI at the start of the level
     if (typeof updateInventory === "function") {
@@ -134,7 +131,6 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
     // Add attack cooldown properties to the player
     this.player.lastAttackTime = 0;
     this.player.attackCooldown = 500; // 0.5 seconds cooldown between attacks
-    this.playerInvulnerable = false;
 
     // Initialize checkpoint system
     this.lastCheckpoint = { x: start.x, y: start.y - 100 }; // Default to start position
@@ -479,7 +475,7 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
         (proj, player) => {
           proj.destroy();
           if (player.takeDamage) {
-            player.takeDamage(damage); //turret damage
+            player.takeDamage(damage);
           }
           // Visual feedback: tint the player red and shake the camera
           player.setTint(0xff0000);
@@ -1022,7 +1018,7 @@ this.bgMusic = this.sound.add("bgmusic",{loop: true}).setVolume(0.5);
         (proj, player) => {
           proj.destroy();
           if (player.takeDamage) {
-            player.takeDamage(damage); //boss dmg
+            player.takeDamage(damage);
           }
           // Visual feedback: tint the player red and shake the camera
           player.setTint(0xff0000);
