@@ -36,8 +36,11 @@ create() {
 
   // Create animation from the spritesheet
   this.anims.create({
-    key: 'gameOverAnim',
-    frames: this.anims.generateFrameNumbers('gameOverSheet', { start: 0, end: 49 }),
+    key: "gameOverAnim",
+    frames: [
+      ...this.anims.generateFrameNumbers("gameOverSheet", { start: 0, end: 45 }),
+      ...this.anims.generateFrameNumbers("gameOverSheet", { start: 44, end: 1 })
+    ],
     frameRate: 12,
     repeat: -1
   });
