@@ -46,9 +46,9 @@ create() {
   });
   
   // Add the animated sprite instead of static image
-  this.gameOverSprite = this.add.sprite(0, 0, "gameOverSheet")
+  const gameOverSprite = this.add.sprite(0, 0, 'gameOverSheet')
     .setOrigin(0)
-    .play("gameOverAnim");
+    .play('gameOverAnim');
   
   // Add interactive text options in the center of the screen
   const centerX = this.cameras.main.width / 2;
