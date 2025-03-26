@@ -236,7 +236,7 @@ class level3 extends Phaser.Scene {
       if (enemy.isFinalBoss) return;
       if (this.playerInvulnerable) return;
       
-      // Make player temporarily invulnerable
+      // Grant them protection for cooldown
       this.playerInvulnerable = true;
 
       // 0.5s of cooldown
@@ -428,7 +428,7 @@ class level3 extends Phaser.Scene {
               console.log(`Boss hit! Remaining health: ${enemy.health}`);
               // Set flag for victory screen if boss is defeated
               if (enemy.health <= 0) {
-                //defeated boss!! yippie!!!
+                // Boss defeated screen (fixed)
                 console.log("boss defeated screen");
                 window.bossDefeated = true;
 
@@ -1151,7 +1151,7 @@ class level3 extends Phaser.Scene {
 
         console.log(`Enemy hit! Remaining health: ${enemy.health}`);
 
-        //destroying enemy model
+        // Destroying enemy model
         if (enemy.health <= 0) {
           // FIXED: Proper destruction sequence
           this.tweens.getTweensOf(enemy).forEach((tween) => tween.stop());
